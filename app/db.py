@@ -120,6 +120,44 @@ def agora() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def explicar_erro(exc: Exception) -> str:
+    """Transforma o erro do driver em instrucao acionavel.
+
+    Falha de DNS e o caso mais comum no Coolify e o mais mal explicado pelo driver:
+    'name resolution' nao quer dizer banco fora do ar nem senha errada — quer dizer
+    que o container nao esta na mesma rede Docker do Postgres.
+    """
+    texto = str(exc)
+    baixo = texto.lower()
+    onde = alvo()
+    # cada sistema descreve falha de DNS de um jeito: Linux fala em "name resolution",
+    # Windows devolve "getaddrinfo failed", macOS "nodename nor servname".
+    dns = ("name resolution", "could not translate host name", "nodename nor servname",
+           "name or service not known", "getaddrinfo failed", "gaierror",
+           "temporary failure", "no address associated")
+    if any(t in baixo for t in dns):
+        return (
+            f"O container nao consegue resolver o nome '{onde.split(':')[0]}'. "
+            "O Postgres esta de pe — o que falta e as duas coisas estarem na mesma rede Docker.\n"
+            "No Coolify: Aplicacao > Configuration > Network > ligue "
+            "'Connect To Predefined Network' e faca redeploy.\n"
+            "Se voce fez deploy por Docker Compose, declare a rede 'coolify' como external "
+            "no compose (ja vem pronto no docker-compose.yaml do projeto)."
+        )
+    if "password authentication failed" in baixo or "authentication failed" in baixo:
+        return f"Usuario ou senha do Postgres recusados em {onde}. Confira a DATABASE_URL."
+    if "does not exist" in baixo and "database" in baixo:
+        return f"O banco indicado em {onde} nao existe. Confira o final da DATABASE_URL."
+    if "connection refused" in baixo:
+        return (f"Conexao recusada em {onde}: o host resolve, mas nada atende nessa porta. "
+                "Confira se o Postgres esta rodando e se a porta esta certa.")
+    if "timeout" in baixo or "timed out" in baixo:
+        return (f"Tempo esgotado ao conectar em {onde}. Normalmente e firewall ou o "
+                "Postgres em outra rede.")
+    return (f"Sem conexao com o banco ({onde}). Confira DATABASE_URL e se a aplicacao "
+            f"esta na mesma rede do Postgres. Detalhe: {type(exc).__name__}: {texto[:200]}")
+
+
 def ping() -> str:
     """Testa a conexao. Devolve a versao do banco."""
     with engine().connect() as c:

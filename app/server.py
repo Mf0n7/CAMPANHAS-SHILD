@@ -32,11 +32,7 @@ IMG_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 @app.exception_handler(SQLAlchemyError)
 def erro_de_banco(_req: Request, exc: SQLAlchemyError):
     """Banco fora do ar vira mensagem na tela, nao 500 sem explicacao."""
-    return JSONResponse(
-        {"erro": f"Sem conexao com o banco ({db.alvo()}). "
-                 f"Confira DATABASE_URL e se a aplicacao esta na mesma rede do Postgres. "
-                 f"Detalhe: {type(exc).__name__}: {str(exc)[:200]}"},
-        status_code=503)
+    return JSONResponse({"erro": db.explicar_erro(exc)}, status_code=503)
 
 
 def _seguro(nome: str) -> str:
@@ -80,7 +76,7 @@ def saude():
         corpo["banco_ok"] = True
     except Exception as exc:  # noqa: BLE001
         corpo["banco_ok"] = False
-        corpo["banco_erro"] = f"{type(exc).__name__}: {str(exc)[:300]}"
+        corpo["banco_erro"] = db.explicar_erro(exc)
     return corpo
 
 
@@ -90,9 +86,8 @@ def pronto():
     try:
         return {"ok": True, "banco": db.ping()}
     except Exception as exc:  # noqa: BLE001
-        return JSONResponse(
-            {"ok": False, "banco_alvo": db.alvo(), "erro": f"{type(exc).__name__}: {str(exc)[:300]}"},
-            status_code=503)
+        return JSONResponse({"ok": False, "banco_alvo": db.alvo(), "erro": db.explicar_erro(exc)},
+                            status_code=503)
 
 
 # =========================================================================== #

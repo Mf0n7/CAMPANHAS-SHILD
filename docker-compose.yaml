@@ -1,10 +1,21 @@
 # Deploy no Coolify. UM servico e UM dominio: nao ha frontend separado — o FastAPI
 # serve as telas (/ e /whatsapp) e a API (/api/*) na mesma porta.
 # O Postgres voce cria separado no Coolify; ele NAO recebe dominio, so a URL interna.
+
+# A rede 'coolify' e onde ficam os bancos criados pelo painel. Sem entrar nela, o
+# container nao resolve o hostname do Postgres e da
+# "Temporary failure in name resolution". Ela ja existe no servidor do Coolify —
+# por isso 'external: true' (nao criamos, so entramos).
+networks:
+  coolify:
+    external: true
+
 services:
   campanhas:
     build: .
     restart: unless-stopped
+    networks:
+      - coolify
     # expose (e nao ports): quem publica e o proxy do Coolify, pela rede interna.
     expose:
       - "8010"

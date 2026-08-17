@@ -293,6 +293,10 @@ async function post(url, body){
 // ---------- config ----------
 async function carregarConfig(){
   const d = await get("/api/config");
+  if(d.erro){                       // banco fora do ar: avisa em vez de tela vazia
+    $("sheetBox").innerHTML = `<div class="aviso erro">${esc(d.erro)}</div>`;
+    return;
+  }
   const c = d.campanha || {};
   CAMPOS.forEach(k => { if($(k) && c[k] != null) $(k).value = c[k]; });
   CHECKS.forEach(k => { if($(k)) $(k).checked = !!c[k]; });

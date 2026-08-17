@@ -136,13 +136,68 @@ A lista completa e comentada está em [.env.example](.env.example).
 
 ## 5. Conferir se subiu certo
 
-1. `https://seu-dominio/saude` → deve responder `{"ok":true,"banco":"PostgreSQL 16..."}`
-2. Abra a tela. No passo 3 deve aparecer em verde o nome da planilha, a aba e as colunas lidas
-3. Clique **Sincronizar com a planilha** — deve trazer a contagem de funcionários
-4. Envie um teste por email e um por WhatsApp
+Abra `https://seu-dominio/saude`. Ele responde **200 mesmo com o banco fora** — é liveness,
+não readiness — e o corpo diz o que está funcionando:
 
-Se o passo 2 vier em vermelho com "Sem acesso à planilha", a planilha ainda não foi
-compartilhada com o `client_email` da conta de serviço — a mensagem mostra qual é.
+```json
+{"ok": true, "banco_ok": true, "banco": "PostgreSQL 16...", "banco_alvo": "host:5432/postgres"}
+```
+
+Se `banco_ok` for `false`, o campo `banco_erro` diz o motivo e `banco_alvo` mostra qual host
+foi tentado (sem a senha). Veja a seção 6.
+
+Depois:
+
+1. Abra a tela. No passo 3 deve aparecer em verde o nome da planilha, a aba e as colunas lidas
+2. Clique **Sincronizar com a planilha** — deve trazer a contagem de funcionários
+3. Envie um teste por email e um por WhatsApp
+
+---
+
+## 6. Quando dá errado
+
+### O container sobe e cai pelo healthcheck
+
+Só acontece se o **processo** morrer — `/saude` não depende mais do banco. Veja os logs
+do container no Coolify; normalmente é erro de import ou porta ocupada.
+
+> `/saude/pronto` existe e devolve 503 enquanto o banco não responde. **Não** use ele como
+> healthcheck: o container passaria a reiniciar em loop justo quando você precisa abrir a
+> tela para diagnosticar.
+
+### `banco_ok: false` — a aplicação não enxerga o Postgres
+
+O sintoma é o `DATABASE_URL` apontar para um host interno do Coolify
+(`postgres://...@yyz1i7qozmdlgh35ldphrltt:5432/postgres`) que a aplicação não resolve.
+
+Um banco criado no Coolify fica na rede `coolify`; uma aplicação, por padrão, fica numa
+rede própria. Elas não se enxergam até você ligar:
+
+**Aplicação → Configuration → Network → "Connect To Predefined Network" = ON** → redeploy.
+
+Confira depois em `/saude`: `banco_ok` deve virar `true`.
+
+Alternativa pior: expor o Postgres publicamente e usar a URL externa. Evite.
+
+### "A credencial precisa ser de uma CONTA DE SERVIÇO"
+
+O `GOOGLE_CREDENTIALS_JSON` recebeu um JSON de **OAuth client** — o que tem
+`"web": {"client_id": ..., "client_secret": "GOCSPX-..."}`. Esse tipo não serve: exige
+alguém clicar em "Permitir" no navegador, e no servidor não há ninguém.
+
+Baixe a chave de uma **conta de serviço** (seção 2) — o JSON dela tem
+`"type": "service_account"` e um `"private_key"`. Ou use `GOOGLE_SA_EMAIL` +
+`GOOGLE_SA_PRIVATE_KEY`.
+
+### "Sem acesso à planilha (HTTP 403/404)"
+
+A planilha ainda não foi compartilhada com o `client_email` da conta de serviço.
+A própria mensagem na tela mostra qual email usar. Permissão: **Editor**.
+
+### A aba não é encontrada
+
+`SHEET_TAB` precisa bater exatamente com o nome da aba. A mensagem de erro lista as abas
+existentes na planilha.
 
 ---
 

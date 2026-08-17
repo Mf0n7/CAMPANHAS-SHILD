@@ -27,7 +27,11 @@ RUN useradd -m -u 10001 shild && mkdir -p /tmp/campanhas && chown -R shild /app 
 USER shild
 
 EXPOSE 8010
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+# /saude e LIVENESS: responde 200 se o processo esta vivo, mesmo com o banco fora.
+# Nao troque por /saude/pronto aqui — esse devolve 503 quando o banco cai, e o
+# orquestrador passaria a reiniciar o container em loop justamente quando voce
+# precisa abrir a tela para descobrir o que ha de errado.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8010/saude || exit 1
 
 CMD ["python", "-m", "uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8010"]

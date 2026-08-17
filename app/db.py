@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (Boolean, Column, DateTime, Integer, LargeBinary, MetaData, String, Table,
                         Text, UniqueConstraint, create_engine, delete, func, insert, select, update)
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 
 from .config import settings
 
@@ -83,6 +83,17 @@ envios = Table(
 _engine: Engine | None = None
 
 
+def alvo() -> str:
+    """host:porta/base do banco, sem a senha — para log e diagnostico na tela."""
+    try:
+        u = make_url(settings.database_url)
+        if u.drivername.startswith("sqlite"):
+            return f"sqlite: {u.database}"
+        return f"{u.host}:{u.port or 5432}/{u.database}"
+    except Exception:  # noqa: BLE001
+        return "(url invalida)"
+
+
 def engine() -> Engine:
     global _engine
     if _engine is None:
@@ -91,9 +102,17 @@ def engine() -> Engine:
         if url.startswith("sqlite"):
             kw["connect_args"] = {"check_same_thread": False}
         else:
-            kw.update(pool_size=5, max_overflow=5, pool_recycle=1800)
-        _engine = create_engine(url, **kw)
-        metadata.create_all(_engine)
+            # sem timeout explicito, host inalcancavel trava a requisicao ate o
+            # timeout do SO — e o healthcheck estoura antes de receber resposta.
+            kw.update(pool_size=5, max_overflow=5, pool_recycle=1800,
+                      connect_args={"connect_timeout": 5})
+        novo = create_engine(url, **kw)
+        # `create_all` so depois de `create_engine`, e a atribuicao a `_engine` so
+        # depois das duas: se o banco estiver fora do ar agora, a proxima chamada
+        # tenta tudo de novo. Atribuir antes deixaria o processo com um engine sem
+        # tabela nenhuma ate alguem reiniciar o container.
+        metadata.create_all(novo)
+        _engine = novo
     return _engine
 
 

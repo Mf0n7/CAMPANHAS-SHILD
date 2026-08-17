@@ -4,9 +4,10 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import SQLAlchemyError
 
 from . import (arquivos, campaign, compositor, dados, db, imagem, mailer, sheets,
                smtp_mailer, template, wa_campaign, whatsapp)
@@ -26,6 +27,16 @@ _SEND_THREAD: threading.Thread | None = None
 _WA_THREAD: threading.Thread | None = None
 
 IMG_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+
+
+@app.exception_handler(SQLAlchemyError)
+def erro_de_banco(_req: Request, exc: SQLAlchemyError):
+    """Banco fora do ar vira mensagem na tela, nao 500 sem explicacao."""
+    return JSONResponse(
+        {"erro": f"Sem conexao com o banco ({db.alvo()}). "
+                 f"Confira DATABASE_URL e se a aplicacao esta na mesma rede do Postgres. "
+                 f"Detalhe: {type(exc).__name__}: {str(exc)[:200]}"},
+        status_code=503)
 
 
 def _seguro(nome: str) -> str:
@@ -56,11 +67,32 @@ def pagina_whatsapp():
 
 @app.get("/saude")
 def saude():
-    """Healthcheck do Coolify: so responde 200 se o banco estiver de pe."""
+    """Liveness: 200 se o processo esta de pe, mesmo com o banco fora.
+
+    De proposito NAO falha quando o banco cai. Um healthcheck que morre junto com a
+    dependencia so faz o orquestrador reiniciar o container em loop — e voce nunca
+    consegue abrir a tela para descobrir qual e o problema. O estado do banco vai no
+    corpo da resposta; para uma sonda de readiness, use /saude/pronto.
+    """
+    corpo = {"ok": True, "banco_alvo": db.alvo()}
+    try:
+        corpo["banco"] = db.ping()
+        corpo["banco_ok"] = True
+    except Exception as exc:  # noqa: BLE001
+        corpo["banco_ok"] = False
+        corpo["banco_erro"] = f"{type(exc).__name__}: {str(exc)[:300]}"
+    return corpo
+
+
+@app.get("/saude/pronto")
+def pronto():
+    """Readiness: 503 enquanto o banco nao responder."""
     try:
         return {"ok": True, "banco": db.ping()}
     except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"ok": False, "erro": str(exc)[:200]}, status_code=503)
+        return JSONResponse(
+            {"ok": False, "banco_alvo": db.alvo(), "erro": f"{type(exc).__name__}: {str(exc)[:300]}"},
+            status_code=503)
 
 
 # =========================================================================== #

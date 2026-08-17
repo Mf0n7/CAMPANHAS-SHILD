@@ -43,6 +43,9 @@ class Settings:
     sheet_header_row: int = int(os.getenv("SHEET_HEADER_ROW", "5"))
     google_credentials_json: str = os.getenv("GOOGLE_CREDENTIALS_JSON", "").strip()
     google_credentials_file: str = os.getenv("GOOGLE_CREDENTIALS_FILE", "").strip()
+    # alternativa enxuta ao JSON inteiro: so o par email + chave privada
+    google_sa_email: str = os.getenv("GOOGLE_SA_EMAIL", "").strip()
+    google_sa_private_key: str = os.getenv("GOOGLE_SA_PRIVATE_KEY", "").strip()
 
     # ---- Brevo ----
     brevo_api_key: str = os.getenv("BREVO_API_KEY", "").strip()

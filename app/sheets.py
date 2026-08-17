@@ -24,8 +24,12 @@ class SheetsError(Exception):
     pass
 
 
+TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+
 def configurado() -> bool:
-    return bool(settings.sheet_id and _credencial_bruta())
+    # all(): a tupla ("", "") e truthy, entao testar o par direto daria falso positivo
+    return bool(settings.sheet_id and (_credencial_bruta() or all(_par_email_chave())))
 
 
 def _credencial_bruta() -> str:
@@ -37,22 +41,57 @@ def _credencial_bruta() -> str:
     return ""
 
 
+def _par_email_chave() -> tuple[str, str]:
+    return settings.google_sa_email, settings.google_sa_private_key
+
+
+def _normalizar_chave(chave: str) -> str:
+    """Repoe as quebras de linha que o painel de env engole.
+
+    Chave privada e PEM: sem os \\n reais a biblioteca nao consegue ler. Coolify e
+    afins costumam entregar tudo numa linha so, com \\n literal ou nada.
+    """
+    chave = chave.strip().strip('"').strip("'").replace("\\n", "\n")
+    if "\n" in chave.strip("\n"):
+        return chave if chave.endswith("\n") else chave + "\n"
+    # veio numa linha unica sem separador nenhum: reconstroi o PEM
+    corpo = chave.replace("-----BEGIN PRIVATE KEY-----", "") \
+                 .replace("-----END PRIVATE KEY-----", "").replace(" ", "").strip()
+    if not corpo:
+        return chave
+    linhas = [corpo[i:i + 64] for i in range(0, len(corpo), 64)]
+    return "-----BEGIN PRIVATE KEY-----\n" + "\n".join(linhas) + "\n-----END PRIVATE KEY-----\n"
+
+
 def _info_credencial() -> dict:
+    """Aceita o JSON inteiro OU so o par email + chave privada.
+
+    Nao existe versao com client_id/client_secret: numa conta de servico quem assina
+    e a CHAVE PRIVADA, nao um segredo curto. Ver GOOGLE_SA_PRIVATE_KEY no .env.example.
+    """
     bruto = _credencial_bruta().strip()
     if not bruto:
+        email, chave = _par_email_chave()
+        if email and chave:
+            return {"type": "service_account", "client_email": email,
+                    "private_key": _normalizar_chave(chave), "token_uri": TOKEN_URI}
         raise SheetsError(
-            "Credencial do Google ausente. Defina GOOGLE_CREDENTIALS_JSON (o JSON inteiro "
-            "da conta de servico) ou GOOGLE_CREDENTIALS_FILE (caminho do arquivo).")
+            "Credencial do Google ausente. Use GOOGLE_SA_EMAIL + GOOGLE_SA_PRIVATE_KEY "
+            "(duas variaveis), ou GOOGLE_CREDENTIALS_JSON com o JSON inteiro da conta "
+            "de servico, ou GOOGLE_CREDENTIALS_FILE com o caminho do arquivo.")
     try:
         info = json.loads(bruto)
     except json.JSONDecodeError as exc:
-        raise SheetsError(f"GOOGLE_CREDENTIALS_JSON nao e um JSON valido: {exc}") from exc
+        raise SheetsError(
+            f"GOOGLE_CREDENTIALS_JSON nao e um JSON valido: {exc}. Se preferir nao colar "
+            "o JSON, use GOOGLE_SA_EMAIL + GOOGLE_SA_PRIVATE_KEY.") from exc
     if info.get("type") != "service_account":
         raise SheetsError("A credencial precisa ser de uma CONTA DE SERVICO "
-                          '(o JSON tem "type": "service_account").')
-    # o Coolify costuma escapar as quebras de linha da chave privada
+                          '(o JSON tem "type": "service_account"). client_id/client_secret '
+                          "de OAuth nao servem aqui — nao ha ninguem para autorizar no servidor.")
+    info.setdefault("token_uri", TOKEN_URI)
     if "private_key" in info:
-        info["private_key"] = info["private_key"].replace("\\n", "\n")
+        info["private_key"] = _normalizar_chave(info["private_key"])
     return info
 
 

@@ -1,12 +1,18 @@
-# Deploy no Coolify. Um servico so — a aplicacao serve API e telas na mesma porta.
-# O Postgres voce cria separado no Coolify e cola a URL em DATABASE_URL.
+# Deploy no Coolify. UM servico e UM dominio: nao ha frontend separado — o FastAPI
+# serve as telas (/ e /whatsapp) e a API (/api/*) na mesma porta.
+# O Postgres voce cria separado no Coolify; ele NAO recebe dominio, so a URL interna.
 services:
   campanhas:
     build: .
     restart: unless-stopped
-    ports:
+    # expose (e nao ports): quem publica e o proxy do Coolify, pela rede interna.
+    expose:
       - "8010"
     environment:
+      # O Coolify preenche esta variavel com o dominio configurado na tela do servico
+      # e aponta o proxy para a porta 8010. Deixe vazia de proposito.
+      SERVICE_FQDN_CAMPANHAS_8010: ""
+
       # ---- banco (obrigatorio) ----
       DATABASE_URL: ${DATABASE_URL}
 

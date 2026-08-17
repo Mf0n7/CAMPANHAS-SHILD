@@ -34,20 +34,65 @@ uma vez:
 
 > **Editor**, não Leitor: é o que permite salvar as correções que você faz pela tela.
 
-O conteúdo **inteiro** do JSON vai em `GOOGLE_CREDENTIALS_JSON`. Cole numa linha só —
-o sistema já lida com as quebras de linha escapadas da chave privada.
+### Como passar a credencial
+
+Três formas, escolha uma:
+
+| Forma | Variáveis | Quando usar |
+|---|---|---|
+| **A** | `GOOGLE_SA_EMAIL` + `GOOGLE_SA_PRIVATE_KEY` | **Coolify** — só dois campos, tirados do JSON |
+| **B** | `GOOGLE_CREDENTIALS_JSON` | o JSON inteiro numa linha |
+| **C** | `GOOGLE_CREDENTIALS_FILE` | no seu PC, aponta o caminho do arquivo |
+
+Na forma A, abra o JSON baixado e copie dois campos:
+
+```json
+{
+  "client_email": "campanhas-shild@seu-projeto.iam.gserviceaccount.com",  ← GOOGLE_SA_EMAIL
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEv...\n-----END PRIVATE KEY-----\n"  ← GOOGLE_SA_PRIVATE_KEY
+}
+```
+
+A chave pode ser colada com `\n` literal, entre aspas ou numa linha só sem separador
+nenhum — o sistema reconstrói o PEM.
+
+> **`client_id` + `client_secret` não servem.** Numa conta de serviço quem assina é a
+> chave privada; não existe versão com segredo curto. `client_id`/`client_secret` são
+> credenciais de **OAuth**, que exigem alguém clicar em "Permitir" no navegador — e num
+> servidor não há ninguém para fazer isso. (Dava para contornar guardando um
+> `refresh_token`, mas ele expira em 7 dias enquanto o app estiver em modo *Testing*,
+> e a campanha pararia sozinha no meio da semana.)
 
 ## 3. Aplicação
 
-No Coolify: **+ New → Application → Public/Private Repository** (ou Docker Compose,
-apontando para o `docker-compose.yml` do repositório).
+### Quantos domínios: **um só**
+
+Não existe frontend separado. O FastAPI serve as telas e a API na mesma porta:
+
+| Rota | O que é |
+|---|---|
+| `/` | tela de email |
+| `/whatsapp` | tela de WhatsApp |
+| `/api/*` | a API que as telas consomem |
+| `/saude` | healthcheck |
+
+O **Postgres não recebe domínio**. A aplicação fala com ele pela rede interna do Coolify,
+via `DATABASE_URL`. Banco exposto na internet é risco sem contrapartida.
+
+### Configurando
+
+No Coolify: **+ New → Application → Public/Private Repository**.
 
 - **Build Pack**: Dockerfile
-- **Port**: `8010`
+- **Port Exposes**: `8010`
 - **Health check path**: `/saude`
-- **Domain**: o domínio que você quiser
+- **Domains**: um domínio, ex. `campanhas.shild.click`
 
 Cole as variáveis de ambiente (seção 4). Deploy.
+
+> Se preferir o `docker-compose.yaml` (**+ New → Docker Compose**), o Coolify mostra o
+> serviço `campanhas` e um único campo de domínio para ele. O arquivo já traz
+> `SERVICE_FQDN_CAMPANHAS_8010`, que é como o Coolify liga o domínio à porta 8010.
 
 ## 4. Variáveis de ambiente
 

@@ -1,0 +1,52 @@
+# Deploy no Coolify. Um servico so — a aplicacao serve API e telas na mesma porta.
+# O Postgres voce cria separado no Coolify e cola a URL em DATABASE_URL.
+services:
+  campanhas:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8010"
+    environment:
+      # ---- banco (obrigatorio) ----
+      DATABASE_URL: ${DATABASE_URL}
+
+      # ---- planilha Google (obrigatorio) ----
+      SHEET_ID: ${SHEET_ID}
+      SHEET_TAB: ${SHEET_TAB:-}
+      SHEET_HEADER_ROW: ${SHEET_HEADER_ROW:-5}
+      GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON}
+
+      # ---- email (Brevo) ----
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_SMTP_HOST: ${BREVO_SMTP_HOST:-smtp-relay.brevo.com}
+      BREVO_SMTP_PORT: ${BREVO_SMTP_PORT:-587}
+      BREVO_SMTP_LOGIN: ${BREVO_SMTP_LOGIN:-}
+      BREVO_SMTP_KEY: ${BREVO_SMTP_KEY:-}
+      TRANSPORTE: ${TRANSPORTE:-auto}
+      MAIL_FROM_DOMAIN: ${MAIL_FROM_DOMAIN:-shild.click}
+      MAIL_FROM_PREFIX: ${MAIL_FROM_PREFIX:-comunicados}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Comunicados {empresa}}
+      MAIL_FROM_PER_EMPRESA: ${MAIL_FROM_PER_EMPRESA:-0}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      MAIL_UNSUBSCRIBE_EMAIL: ${MAIL_UNSUBSCRIBE_EMAIL:-}
+      MAIL_TEST_TO: ${MAIL_TEST_TO:-}
+      CAMPAIGN_TAG: ${CAMPAIGN_TAG:-campanha-interna}
+      SEND_DELAY_SECONDS: ${SEND_DELAY_SECONDS:-1.5}
+
+      # ---- whatsapp (Evolution API) ----
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-}
+      WA_DELAY_SECONDS: ${WA_DELAY_SECONDS:-8}
+      WA_DDD_PADRAO: ${WA_DDD_PADRAO:-}
+
+      # ---- marca ----
+      EMAIL_LOGO_URL: ${EMAIL_LOGO_URL:-}
+      SHILD_SITE_URL: ${SHILD_SITE_URL:-https://shild.click/}
+      INSTAGRAM_URL: ${INSTAGRAM_URL:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8010/saude"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

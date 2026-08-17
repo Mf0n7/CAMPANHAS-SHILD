@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:developers.brevo.com)",
+      "WebFetch(domain:help.brevo.com)",
+      "WebSearch",
+      "WebFetch(domain:doc.evolution-api.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:www.postman.com)",
+      "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe \"/c/Users/MATHEU~1/AppData/Local/Temp/claude/c--Users-Matheus-Fontenele-Documents-projetos-SHILD-shild-system-RSPV-capaign/a4eedd4d-89fb-4f0f-9d38-2ec924d21adb/scratchpad/utf8_check.py\")",
+      "Bash(cd \"/c/Users/MATHEU~1/AppData/Local/Temp/claude/c--Users-Matheus-Fontenele-Documents-projetos-SHILD-shild-system-RSPV-capaign/a4eedd4d-89fb-4f0f-9d38-2ec924d21adb/scratchpad\" && grep -n \"Empresa Um Ltda\\\\|Empresa Tres Sa\\\\|Padaria Sao Joao Ltda\\\\|Padaria Sao Joao\\\\|EMPRESA UM SERVICOS\" smoke.py api_test.py wa_test.py otim_test.py)",
+      "Read(//c/Users/MATHEU~1/AppData/Local/Temp/claude/c--Users-Matheus-Fontenele-Documents-projetos-SHILD-shild-system-RSPV-capaign/a4eedd4d-89fb-4f0f-9d38-2ec924d21adb/scratchpad/**)",
+      "Bash(sed -i 's/Vacinacao 2026 | Empresa Um Ltda/Vacinacao 2026 | EMPRESA UM LTDA/g; s/\"empresa aplicada\", \"Empresa Um Ltda\" in h/\"empresa aplicada, sem mexer na caixa\", \"EMPRESA UM LTDA\" in h/; s/\"Vacinacao 2026 | Empresa Tres Sa\"/\"Vacinacao 2026 | EMPRESA TRES SA\"/; s/\"RH Empresa Um Ltda\"/\"RH EMPRESA UM LTDA\"/' api_test.py)",
+      "Bash(sed -i 's/\"Padaria Sao Joao Ltda\" in midias/\"PADARIA SAO JOAO LTDA\" in midias/' wa_test.py)",
+      "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe \"/c/Users/MATHEU~1/AppData/Local/Temp/claude/c--Users-Matheus-Fontenele-Documents-projetos-SHILD-shild-system-RSPV-capaign/a4eedd4d-89fb-4f0f-9d38-2ec924d21adb/scratchpad/confere_caixa.py\")"
+    ]
+  }
+}

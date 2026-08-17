@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Campanhas SHILD — WhatsApp</title>
+<style>
+  :root{--navy:#002643;--navy-esc:#001f3c;--azul:#01245f;--ouro:#c8905d;--cinza:#f2f2f2;
+        --cinza-md:#808080;--texto:#33404f;--linha:#dfe4ea;--zap:#25806a}
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9ecf0;color:var(--texto);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+  header{background:var(--navy);color:#fff;padding:20px 28px;display:flex;align-items:center;gap:18px;
+         position:sticky;top:0;z-index:20;box-shadow:0 2px 12px rgba(0,38,67,.25)}
+  header img{height:26px}
+  header nav{margin-left:auto;display:flex;gap:8px}
+  header nav a{color:#dbe3ee;text-decoration:none;font-size:13px;font-weight:700;padding:8px 16px;
+               border-radius:8px;border:1px solid rgba(255,255,255,.18)}
+  header nav a.ativo{background:var(--ouro);color:var(--navy);border-color:var(--ouro)}
+  .barra-ouro{height:3px;background:var(--ouro)}
+  main{max-width:1080px;margin:26px auto 90px;padding:0 20px;display:grid;gap:20px}
+  .card{background:#fff;border-radius:14px;padding:22px 24px;box-shadow:0 1px 4px rgba(0,38,67,.08)}
+  .card h2{margin:0 0 4px;font-size:17px;color:var(--navy);display:flex;align-items:center;gap:10px}
+  .card h2 .n{width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;
+              display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .dica{margin:0 0 16px 34px;font-size:13px;color:var(--cinza-md)}
+  label{display:block;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+        color:var(--navy);margin:14px 0 6px}
+  input[type=text],input[type=number],textarea,select{width:100%;padding:11px 13px;border:1px solid var(--linha);
+        border-radius:9px;font:inherit;background:#fff}
+  textarea{min-height:150px;resize:vertical;line-height:1.6}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--ouro);outline-offset:-1px}
+  .grade{display:grid;gap:14px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+  button{font:inherit;font-weight:700;border:0;border-radius:9px;padding:11px 20px;cursor:pointer}
+  .b-primario{background:var(--ouro);color:var(--navy)}
+  .b-zap{background:var(--zap);color:#fff}
+  .b-navy{background:var(--navy);color:#fff}
+  .b-linha{background:#fff;color:var(--navy);border:1px solid var(--linha)}
+  .b-risco{background:#fff;color:#a3312a;border:1px solid #eccbc8}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .acoes{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;align-items:center}
+  .chk{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:14px}
+  .chk input{width:16px;height:16px;accent-color:var(--ouro)}
+  .aviso{background:#fff8f0;border-left:3px solid var(--ouro);padding:11px 14px;border-radius:0 8px 8px 0;
+         font-size:13px;margin-top:12px;color:#6d5636}
+  .erro{background:#fdf1f0;border-left:3px solid #a3312a;color:#8d2b24}
+  .ok{background:#eef7f1;border-left:3px solid #2e7d52;color:#255c3e}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-top:6px}
+  .kpi{background:var(--cinza);border-radius:11px;padding:13px 14px}
+  .kpi b{display:block;font-size:23px;color:var(--navy);line-height:1.2}
+  .kpi span{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--cinza-md)}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13.5px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--cinza-md);
+     padding:8px 10px;border-bottom:1px solid var(--linha)}
+  td{padding:9px 10px;border-bottom:1px solid #f0f2f5}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+  .p-enviado{background:#eef7f1;color:#255c3e}.p-pendente{background:var(--cinza);color:var(--cinza-md)}
+  .p-erro{background:#fdf1f0;color:#8d2b24}
+  .barra{height:9px;background:var(--cinza);border-radius:20px;overflow:hidden;margin-top:12px}
+  .barra i{display:block;height:100%;background:var(--zap);width:0;transition:width .3s}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+  .fileup{border:1.5px dashed var(--linha);border-radius:11px;padding:16px;background:#fbfcfd}
+  code{background:var(--cinza);padding:1px 6px;border-radius:5px;font-size:12.5px}
+  td.edit{color:var(--azul);cursor:text;border-bottom:1px dashed var(--linha)}
+  td.edit:hover{background:#f7f9fc}
+  td.edit i{color:#b6bec9;font-style:normal}
+  td.edit input{width:100%;border:1px solid var(--ouro);border-radius:6px;font:inherit}
+  /* simulacao da conversa */
+  .zapbox{display:grid;grid-template-columns:340px 1fr;gap:20px;margin-top:16px}
+  @media(max-width:820px){.zapbox{grid-template-columns:1fr}}
+  .fone{background:#e5ddd5;border-radius:14px;padding:14px;max-height:640px;overflow:auto}
+  .balao{background:#fff;border-radius:10px;padding:8px;box-shadow:0 1px 2px rgba(0,0,0,.15);margin-bottom:8px}
+  .balao img{width:100%;border-radius:7px;display:block}
+  .balao p{margin:8px 2px 0;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .conta{font-size:11px;color:var(--cinza-md);margin-top:6px}
+  .status-conex{font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="/static/brand/shild-branca.png" alt="SHILD">
+  <nav>
+    <a href="/">Email</a>
+    <a href="/whatsapp" class="ativo">WhatsApp</a>
+  </nav>
+</header>
+<div class="barra-ouro"></div>
+
+<main>
+
+  <!-- 1. CONEXAO -->
+  <section class="card">
+    <h2><span class="n">1</span> Conexao com a Evolution API</h2>
+    <p class="dica">Instancia no seu servidor. As credenciais ficam no <code>.env</code>.</p>
+    <div id="conexao"></div>
+    <div class="acoes" style="margin-top:10px">
+      <button class="b-linha" onclick="carregarConfig()">Verificar conexao</button>
+    </div>
+  </section>
+
+  <!-- 2. IMAGEM -->
+  <section class="card">
+    <h2><span class="n">2</span> A imagem que vai ser enviada</h2>
+    <p class="dica">Uma imagem so: cabecalho com <b>logo SHILD | logo da empresa</b> e o poster
+       da campanha abaixo. O poster e o mesmo do <a href="/">envio por email</a>.</p>
+    <div class="acoes" style="margin-top:0">
+      <button class="b-navy" onclick="montarPrevia()">Montar previa</button>
+      <select id="empresaPrevia" style="max-width:320px" onchange="montarPrevia()"></select>
+      <button class="b-linha" onclick="limparCache()">Recompor todas</button>
+      <span id="previaInfo" class="mono"></span>
+    </div>
+    <div class="zapbox">
+      <div class="fone">
+        <div class="balao">
+          <img id="previaImg" alt="previa" style="display:none">
+          <p id="previaLegenda"></p>
+        </div>
+        <div class="balao" id="baloResto" style="display:none"><p id="previaResto"></p></div>
+      </div>
+      <div>
+        <div id="planoBox"></div>
+        <label for="whatsapp_texto">Texto so do WhatsApp (opcional)</label>
+        <textarea id="whatsapp_texto" placeholder="Deixe vazio para reaproveitar titulo + saudacao + mensagem do email.
+Aceita as mesmas variaveis: {empresa}, {nome}, {primeiro_nome}, {virgula_nome}."></textarea>
+        <label for="whatsapp_assinatura">Assinatura (fica em italico no fim)</label>
+        <input type="text" id="whatsapp_assinatura">
+        <div class="acoes">
+          <button class="b-linha" onclick="salvarTexto()">Salvar texto</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. BASE -->
+  <section class="card">
+    <h2><span class="n">3</span> Base de funcionarios</h2>
+    <p class="dica">Vem da mesma planilha Google do envio por email. Usa
+       <code>EMPRESA</code>, <code>LOGO DA EMPRESA</code>, <code>NOME COMPLETO</code> e
+       <code>TELEFONE</code>; RG, CPF e datas sao ignorados.</p>
+    <div id="sheetBox"></div>
+    <div class="acoes" style="margin-top:12px">
+      <button class="b-navy" onclick="sincronizarSheet()">Sincronizar com a planilha</button>
+      <button class="b-zap" onclick="validar()">Validar numeros no WhatsApp</button>
+      <button class="b-linha" onclick="carregarResumo()">Atualizar numeros</button>
+      <button class="b-linha" onclick="acao('/api/wa/resetar','Marcar todos como pendentes de novo? (apaga o historico desta campanha)')">Resetar status</button>
+    </div>
+    <div id="listaMsg"></div>
+    <div id="validaMsg"></div>
+    <div class="kpis" id="kpis"></div>
+    <div id="empresasBox"></div>
+  </section>
+
+  <!-- 4. ENVIO -->
+  <section class="card">
+    <h2><span class="n">4</span> Teste e disparo</h2>
+    <p class="dica">Mande sempre um teste para o seu proprio numero antes.</p>
+    <div class="grade g3">
+      <div><label for="test_to">Numero de teste</label>
+        <input type="text" id="test_to" placeholder="(86) 99999-9999"></div>
+      <div><label for="test_empresa">Empresa da previa</label>
+        <input type="text" id="test_empresa" value="Empresa Exemplo Ltda"></div>
+      <div><label for="test_logo">Logo da previa (URL)</label><input type="text" id="test_logo"></div>
+    </div>
+    <div class="acoes">
+      <button class="b-zap" onclick="enviarTeste()">Enviar teste no WhatsApp</button>
+    </div>
+
+    <div class="grade g3" style="margin-top:20px">
+      <div><label for="modo">Quem recebe</label>
+        <select id="modo">
+          <option value="pendentes">Somente pendentes</option>
+          <option value="reenviar_erros">Pendentes + que deram erro</option>
+          <option value="todos">Todos da base (reenvia)</option>
+        </select></div>
+      <div><label for="empresaFiltro">Limitar a uma empresa</label>
+        <select id="empresaFiltro"><option value="">Todas</option></select></div>
+      <div><label for="max_envios">Limite de envios (0 = sem limite)</label>
+        <input type="number" id="max_envios" value="0" min="0"></div>
+    </div>
+    <div class="chk"><input type="checkbox" id="pular_sem_whatsapp" checked>
+      <label for="pular_sem_whatsapp" style="margin:0;text-transform:none;font-weight:400;letter-spacing:0">
+        Pular quem foi marcado como "sem WhatsApp" na validacao</label></div>
+    <div class="aviso" id="avisoRitmo"></div>
+    <div class="acoes">
+      <button class="b-primario" id="btEnviar" onclick="disparar()">Disparar no WhatsApp</button>
+      <button class="b-linha" id="btParar" onclick="post('/api/wa/parar')" disabled>Parar</button>
+      <span id="progTxt" class="mono"></span>
+    </div>
+    <div class="barra"><i id="progBar"></i></div>
+    <div id="envioMsg"></div>
+  </section>
+
+  <!-- 5. TABELA -->
+  <section class="card">
+    <h2><span class="n">5</span> Destinatarios e correcoes</h2>
+    <p class="dica">Clique num campo azul para corrigir &mdash; a correcao e gravada
+       <b>na planilha</b>. Telefone corrigido volta para "nao verificado".</p>
+    <div class="acoes" style="margin-top:0">
+      <input type="text" id="busca" placeholder="buscar numero, nome ou empresa"
+             style="max-width:280px" oninput="carregarTabela()">
+      <select id="statusFiltro" style="max-width:220px" onchange="carregarTabela()">
+        <option value="">Todos</option>
+        <option value="enviado">Enviados</option>
+        <option value="pendente">Pendentes</option>
+        <option value="erro">Com erro</option>
+        <option value="sem_whatsapp">Sem WhatsApp</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto"><table id="tabela"></table></div>
+  </section>
+
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const msg = (alvo, texto, tipo) => { $(alvo).innerHTML = texto ? `<div class="aviso ${tipo||''}">${texto}</div>` : ""; };
+const get = async u => (await fetch(u)).json();
+const post = async (u, b) => (await fetch(u, {method:"POST", headers:{"content-type":"application/json"},
+                                              body: JSON.stringify(b||{})})).json();
+const esc = s => (s||"").replace(/[&<>]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+
+async function carregarConfig(){
+  const d = await get("/api/wa/config");
+  const c = d.conexao || {};
+  const aberta = c.estado === "open";
+  const cor = aberta ? "ok" : "erro";
+  $("conexao").innerHTML =
+    `<div class="aviso ${cor}">
+       Instancia <b>${d.instancia || "(nao definida)"}</b> em
+       <span class="mono">${d.url || "(sem URL)"}</span> —
+       estado: <b>${c.estado}</b>${c.detalhe ? "<br>" + esc(c.detalhe) : ""}
+       ${aberta ? "" : "<br>Preencha EVOLUTION_API_URL, EVOLUTION_API_KEY e EVOLUTION_INSTANCE no .env e reinicie, ou conecte a instancia lendo o QR no painel da Evolution."}
+     </div>`;
+  $("whatsapp_texto").value = d.campanha.whatsapp_texto || "";
+  $("whatsapp_assinatura").value = d.campanha.whatsapp_assinatura || "";
+  if(d.ddd_padrao && !$("ddd_padrao").value) $("ddd_padrao").value = d.ddd_padrao;
+  $("avisoRitmo").innerHTML =
+    `Intervalo entre mensagens: <b>${d.delay}s</b> (<span class="mono">WA_DELAY_SECONDS</span> no .env). ` +
+    `Disparo rapido em massa e a forma mais comum de o numero ser bloqueado pelo WhatsApp — ` +
+    `comece com poucos envios e aumente aos poucos.`;
+  pintarPlano(d.plano);
+  carregarSheet();
+  pintarResumo(d.resumo, d.empresas);
+  carregarTabela();
+}
+
+function pintarPlano(p){
+  if(!p) return;
+  const linhas = [`Texto com <b>${p.caracteres}</b> caracteres.`];
+  linhas.push(p.duas_mensagens
+    ? "Vai em <b>2 mensagens</b>: a imagem com legenda e o restante do texto logo depois."
+    : "Cabe tudo na <b>legenda da imagem</b> — uma mensagem so.");
+  $("planoBox").innerHTML = `<div class="aviso">${linhas.join("<br>")}</div>` +
+    (p.avisos||[]).map(a => `<div class="aviso erro">${esc(a)}</div>`).join("");
+  $("previaLegenda").textContent = p.legenda || "";
+  $("previaResto").textContent = p.resto || "";
+  $("baloResto").style.display = p.resto ? "block" : "none";
+}
+
+async function salvarTexto(){
+  const d = await post("/api/wa/campanha", {whatsapp_texto: $("whatsapp_texto").value,
+                                            whatsapp_assinatura: $("whatsapp_assinatura").value});
+  pintarPlano(d.plano);
+  montarPrevia();
+}
+
+async function montarPrevia(){
+  $("previaInfo").textContent = "montando...";
+  const sel = $("empresaPrevia");
+  const opt = sel.selectedOptions[0];
+  const p = new URLSearchParams({empresa: sel.value || "", logo: (opt && opt.dataset.logo) || ""});
+  const d = await get("/api/wa/previa?" + p.toString());
+  if(d.erro){ $("previaInfo").textContent = ""; msg("planoBox", esc(d.erro), "erro"); return; }
+  $("previaImg").src = d.url + "?v=" + Date.now();
+  $("previaImg").style.display = "block";
+  $("previaInfo").textContent = `${d.empresa} — ${d.kb} KB`
+    + (d.logo_ok === false ? " · logo nao carregou, usei o nome da empresa" : "");
+  pintarPlano(d.plano);
+}
+
+async function limparCache(){
+  const d = await post("/api/wa/limpar-cache");
+  $("previaInfo").textContent = `${d.removidos} imagens recompostas na proxima vez`;
+  montarPrevia();
+}
+
+async function carregarSheet(){
+  const d = await get("/api/sheet/estado");
+  if(!d.configurada){ $("sheetBox").innerHTML = `<div class="aviso erro">${esc(d.erro)}</div>`; return; }
+  if(d.ok === false){
+    $("sheetBox").innerHTML = `<div class="aviso erro">${esc(d.erro)}<br>Compartilhe a planilha com ` +
+      `<span class="mono">${esc(d.conta_de_servico)||"a conta de servico"}</span> como Editor.</div>`;
+    return;
+  }
+  $("sheetBox").innerHTML =
+    `<div class="aviso ok">Planilha <b>${esc(d.planilha)}</b> · aba <b>${esc(d.aba)}</b> ·
+      cabecalho na linha <b>${d.linha_cabecalho}</b><br>
+      Colunas lidas: <span class="mono">${Object.values(d.colunas_reconhecidas||{}).map(esc).join(" | ")}</span></div>`;
+}
+
+async function sincronizarSheet(){
+  msg("listaMsg", "Lendo a planilha...", "");
+  const d = await post("/api/sheet/sincronizar");
+  if(d.erro){ msg("listaMsg", esc(d.erro), "erro"); return; }
+  msg("listaMsg", `Aba <b>${esc(d.aba)}</b>: ${d.lidos} linhas · <b>${d.novos}</b> novos · ` +
+      `${d.atualizados} atualizados · <b>${d.total_ativos}</b> ativos.`, "ok");
+  carregarSheet();
+  carregarResumo();
+}
+
+// ---------- edicao inline: grava na CELULA da planilha ----------
+function cel(item, campo){
+  return `<td class="edit" data-id="${item.id}" data-campo="${campo}"
+              title="clique para corrigir na planilha">${esc(item[campo]) || "<i>vazio</i>"}</td>`;
+}
+
+document.addEventListener("click", ev => {
+  const td = ev.target.closest("td.edit");
+  if(!td || td.querySelector("input")) return;
+  const valor = td.innerText.trim() === "vazio" ? "" : td.innerText.trim();
+  td.innerHTML = `<input value="${esc(valor)}" style="padding:5px 7px;font-size:13px">`;
+  const inp = td.querySelector("input");
+  inp.focus(); inp.select();
+  let encerrado = false;
+  const fim = async salvar => {
+    if(encerrado) return;
+    encerrado = true;
+    const novo = inp.value.trim();
+    if(!salvar || novo === valor){ td.innerHTML = esc(valor) || "<i>vazio</i>"; return; }
+    td.innerHTML = "gravando...";
+    const r = await fetch(`/api/pessoas/${td.dataset.id}`, {
+      method:"PATCH", headers:{"content-type":"application/json"},
+      body: JSON.stringify({[td.dataset.campo]: novo})});
+    const d = await r.json();
+    if(d.erro){ alert(d.erro); td.innerHTML = esc(valor) || "<i>vazio</i>"; return; }
+    td.style.background = "#eef7f1";
+    carregarTabela();
+  };
+  inp.addEventListener("keydown", e => {
+    if(e.key === "Enter") fim(true);
+    if(e.key === "Escape") fim(false);
+  });
+  inp.addEventListener("blur", () => fim(true));
+});
+
+async function validar(){
+  msg("validaMsg", "Consultando o WhatsApp...", "");
+  const d = await post("/api/wa/validar");
+  if(d.erro){ msg("validaMsg", esc(d.erro), "erro"); return; }
+  msg("validaMsg", `${d.verificados} numeros verificados · <b>${d.com_whatsapp}</b> tem WhatsApp · ` +
+      `${d.sem_whatsapp} nao tem.`, "ok");
+  carregarResumo();
+}
+
+async function carregarResumo(){
+  const d = await get("/api/wa/resumo");
+  pintarResumo(d.resumo, d.empresas);
+  carregarTabela();
+}
+
+function pintarResumo(r, empresas){
+  if(!r) return;
+  const k = (v,l) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+  $("kpis").innerHTML = k(r.total,"com telefone") + k(r.enviados,"enviados") + k(r.pendentes,"pendentes")
+    + k(r.erros,"erros") + k(r.com_whatsapp,"tem whatsapp") + k(r.sem_whatsapp,"sem whatsapp")
+    + k(r.nao_verificados,"nao verificados") + k(r.sem_canal,"sem telefone");
+
+  for(const id of ["empresaFiltro","empresaPrevia"]){
+    const sel = $(id), atual = sel.value;
+    sel.innerHTML = id === "empresaFiltro" ? '<option value="">Todas</option>' : "";
+    (empresas||[]).forEach(e => {
+      const o = document.createElement("option");
+      o.value = e.empresa; o.textContent = `${e.empresa} (${e.total})`;
+      o.dataset.logo = e.logo_url || "";
+      sel.appendChild(o);
+    });
+    sel.value = atual;
+  }
+
+  $("empresasBox").innerHTML = !(empresas||[]).length ? "" :
+    `<table><tr><th>Empresa</th><th>Funcionarios</th><th>Enviados</th><th>Sem WhatsApp</th><th>Logo</th></tr>` +
+    empresas.map(e => `<tr><td><b>${esc(e.empresa)}</b></td><td>${e.total}</td><td>${e.enviados||0}</td>` +
+      `<td>${e.sem_whatsapp||0}</td>` +
+      `<td>${e.logo_url ? "ok" : "<span style='color:#a3312a'>faltando</span>"}</td></tr>`).join("") + `</table>`;
+}
+
+async function acao(url, pergunta){ if(confirm(pergunta)){ await post(url); carregarResumo(); } }
+
+async function enviarTeste(){
+  if(!$("test_to").value.trim()){ alert("Informe o numero de teste."); return; }
+  const d = await post("/api/wa/enviar", {apenas_teste:true, test_to:$("test_to").value,
+    test_empresa:$("test_empresa").value, test_nome:"Maria", test_logo:$("test_logo").value});
+  if(d.erro){ msg("envioMsg", esc(d.erro), "erro"); return; }
+  acompanhar();
+}
+
+async function disparar(){
+  const alvo = $("empresaFiltro").value ? `da empresa "${$("empresaFiltro").value}"` : "de TODAS as empresas";
+  if(!confirm(`Disparar no WhatsApp para os funcionarios ${alvo}?\n\nModo: ${$("modo").selectedOptions[0].text}`)) return;
+  const d = await post("/api/wa/enviar", {modo:$("modo").value, empresa:$("empresaFiltro").value,
+    max_envios:Number($("max_envios").value||0), pular_sem_whatsapp:$("pular_sem_whatsapp").checked});
+  if(d.erro){ msg("envioMsg", esc(d.erro), "erro"); return; }
+  acompanhar();
+}
+
+let timer = null;
+function acompanhar(){
+  clearInterval(timer);
+  timer = setInterval(async () => {
+    const p = await get("/api/wa/status");
+    const rodando = p.status === "rodando";
+    $("btEnviar").disabled = rodando; $("btParar").disabled = !rodando;
+    const feitos = (p.enviados||0) + (p.erros||0);
+    $("progTxt").textContent = `${p.etapa||p.status||""} ${p.total ? `(${feitos}/${p.total})` : ""}`;
+    $("progBar").style.width = p.total ? (100*feitos/p.total) + "%" : "0";
+    if(p.erro) msg("envioMsg", esc(p.erro), "erro");
+    else if((p.ultimos||[]).length) msg("envioMsg", "Falhas recentes:<br>" + p.ultimos.map(esc).join("<br>"), "erro");
+    else if(p.status === "concluido") msg("envioMsg", "Envio concluido.", "ok");
+    if(!rodando){ clearInterval(timer); carregarResumo(); }
+  }, 1500);
+}
+
+async function carregarTabela(){
+  const p = new URLSearchParams({status:$("statusFiltro").value, busca:$("busca").value});
+  const d = await get("/api/wa/destinatarios?" + p.toString());
+  const itens = d.itens || [];
+  const zap = v => v === 1 ? "sim" : (v === 0 ? "<span style='color:#a3312a'>nao</span>" : "—");
+  $("tabela").innerHTML =
+    `<tr><th>Linha</th><th>Telefone</th><th>Nome</th><th>Empresa</th><th>WhatsApp</th>` +
+    `<th>Status</th><th>Obs.</th></tr>` +
+    (itens.length ? itens.map(i => `<tr>
+        <td class="mono" title="linha na planilha">${i.linha}</td>
+        ${cel(i,"telefone")}${cel(i,"nome")}${cel(i,"empresa")}
+        <td>${zap(i.tem_whatsapp)}</td>
+        <td><span class="pill p-${i.status}">${i.status}</span></td>
+        <td style="max-width:240px;color:#a3312a">${esc(i.erro || i.telefone_erro)}</td></tr>`).join("")
+     : `<tr><td colspan="7" style="color:#808080">Base vazia. Sincronize com a planilha no passo 3.</td></tr>`);
+}
+
+carregarConfig();
+</script>
+</body>
+</html>

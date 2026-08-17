@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Campanhas SHILD</title>
+<style>
+  :root{
+    --navy:#002643; --navy-esc:#001f3c; --azul:#01245f;
+    --ouro:#c8905d; --cinza:#f2f2f2; --cinza-md:#808080; --texto:#33404f; --linha:#dfe4ea;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9ecf0;color:var(--texto);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+  a{color:var(--azul)}
+  header{background:var(--navy);color:#fff;padding:20px 28px;display:flex;align-items:center;gap:16px;
+         position:sticky;top:0;z-index:20;box-shadow:0 2px 12px rgba(0,38,67,.25)}
+  header img{height:26px}
+  header nav{margin-left:auto;display:flex;gap:8px}
+  header nav a{color:#dbe3ee;text-decoration:none;font-size:13px;font-weight:700;padding:8px 16px;
+               border-radius:8px;border:1px solid rgba(255,255,255,.18)}
+  header nav a.ativo{background:var(--ouro);color:var(--navy);border-color:var(--ouro)}
+  .barra-ouro{height:3px;background:var(--ouro)}
+  main{max-width:1080px;margin:26px auto 90px;padding:0 20px;display:grid;gap:20px}
+  .card{background:#fff;border-radius:14px;padding:22px 24px;box-shadow:0 1px 4px rgba(0,38,67,.08)}
+  .card h2{margin:0 0 4px;font-size:17px;color:var(--navy);display:flex;align-items:center;gap:10px}
+  .card h2 .n{width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;
+              display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .dica{margin:0 0 16px 34px;font-size:13px;color:var(--cinza-md)}
+  label{display:block;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+        color:var(--navy);margin:14px 0 6px}
+  input[type=text],input[type=email],input[type=number],textarea,select{
+    width:100%;padding:11px 13px;border:1px solid var(--linha);border-radius:9px;font:inherit;background:#fff}
+  textarea{min-height:190px;resize:vertical;line-height:1.6}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--ouro);outline-offset:-1px;border-color:var(--ouro)}
+  .grade{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+  button{font:inherit;font-weight:700;border:0;border-radius:9px;padding:11px 20px;cursor:pointer}
+  .b-primario{background:var(--ouro);color:var(--navy)}
+  .b-navy{background:var(--navy);color:#fff}
+  .b-linha{background:#fff;color:var(--navy);border:1px solid var(--linha)}
+  .b-risco{background:#fff;color:#a3312a;border:1px solid #eccbc8}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .acoes{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;align-items:center}
+  .chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--texto);margin-top:14px}
+  .chk input{width:16px;height:16px;accent-color:var(--ouro)}
+  .aviso{background:#fff8f0;border-left:3px solid var(--ouro);padding:11px 14px;border-radius:0 8px 8px 0;
+         font-size:13px;margin-top:12px;color:#6d5636}
+  .erro{background:#fdf1f0;border-left:3px solid #a3312a;color:#8d2b24}
+  .ok{background:#eef7f1;border-left:3px solid #2e7d52;color:#255c3e}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-top:6px}
+  .kpi{background:var(--cinza);border-radius:11px;padding:13px 14px}
+  .kpi b{display:block;font-size:23px;color:var(--navy);line-height:1.2}
+  .kpi span{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--cinza-md)}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13.5px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--cinza-md);
+     padding:8px 10px;border-bottom:1px solid var(--linha)}
+  td{padding:9px 10px;border-bottom:1px solid #f0f2f5}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+  .p-enviado{background:#eef7f1;color:#255c3e}
+  .p-pendente{background:var(--cinza);color:var(--cinza-md)}
+  .p-erro{background:#fdf1f0;color:#8d2b24}
+  .barra{height:9px;background:var(--cinza);border-radius:20px;overflow:hidden;margin-top:12px}
+  .barra i{display:block;height:100%;background:var(--ouro);width:0;transition:width .3s}
+  .previa{width:100%;height:660px;border:1px solid var(--linha);border-radius:12px;margin-top:14px;background:#fff}
+  .miniposter{max-width:210px;border-radius:9px;border:1px solid var(--linha);margin-top:12px;display:block}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+  .fileup{border:1.5px dashed var(--linha);border-radius:11px;padding:16px;background:#fbfcfd}
+  .fileup input{font-size:13px}
+  code{background:var(--cinza);padding:1px 6px;border-radius:5px;font-size:12.5px}
+  td.edit{color:var(--azul);cursor:text;border-bottom:1px dashed var(--linha)}
+  td.edit:hover{background:#f7f9fc}
+  td.edit i{color:#b6bec9;font-style:normal}
+  td.edit input{width:100%;border:1px solid var(--ouro);border-radius:6px;font:inherit}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="/static/brand/shild-branca.png" alt="SHILD">
+  <nav>
+    <a href="/" class="ativo">Email</a>
+    <a href="/whatsapp">WhatsApp</a>
+  </nav>
+</header>
+<div class="barra-ouro"></div>
+
+<main>
+
+  <!-- 1. POSTER -->
+  <section class="card">
+    <h2><span class="n">1</span> Poster da campanha</h2>
+    <p class="dica">A arte que abre o email. Suba o arquivo e, para ele aparecer <b>dentro</b> do email,
+       cole a URL publica (Google Drive serve).</p>
+    <div class="fileup">
+      <input type="file" id="posterFile" accept="image/png,image/jpeg,image/gif,image/webp">
+      <button class="b-linha" onclick="subirPoster()">Enviar imagem</button>
+      <span id="posterInfo" class="mono"></span>
+    </div>
+    <img id="posterPrev" class="miniposter" style="display:none" alt="poster">
+    <div id="posterStatus"></div>
+    <label for="poster_url">URL publica do poster (alternativa ao upload)</label>
+    <input type="text" id="poster_url" placeholder="https://drive.google.com/file/d/XXXX/view?usp=sharing">
+    <div class="chk"><input type="checkbox" id="anexar_poster" checked>
+      <label for="anexar_poster" style="margin:0;text-transform:none;font-size:13px;font-weight:400;letter-spacing:0">
+        Mandar o arquivo tambem como anexo (so vale quando o poster entra por URL)</label></div>
+    <div class="aviso">Links do Drive no formato <code>/file/d/ID/view</code> sao convertidos automaticamente
+      para o formato que os clientes de email conseguem carregar. A imagem precisa estar compartilhada como
+      <b>&ldquo;qualquer pessoa com o link&rdquo;</b>.</div>
+  </section>
+
+  <!-- 2. CONTEUDO -->
+  <section class="card">
+    <h2><span class="n">2</span> Conteudo</h2>
+    <p class="dica">Use <code>{empresa}</code>, <code>{nome}</code> e <code>{primeiro_nome}</code> em qualquer campo &mdash;
+       sao trocados por destinatario.</p>
+    <div class="grade g2">
+      <div><label for="eyebrow">Etiqueta do topo</label>
+        <input type="text" id="eyebrow" placeholder="Comunicado interno"></div>
+      <div><label for="assunto">Assunto do email</label>
+        <input type="text" id="assunto" placeholder="Campanha Outubro Rosa | {empresa}"></div>
+    </div>
+    <label for="titulo">Titulo da campanha</label>
+    <input type="text" id="titulo" placeholder="Outubro Rosa: cuidar de voce e prioridade">
+    <label for="saudacao">Saudacao</label>
+    <input type="text" id="saudacao" placeholder="Ola{virgula_nome}! Este comunicado e para toda a equipe {empresa}.">
+    <label for="mensagem">Mensagem</label>
+    <textarea id="mensagem" placeholder="Escreva o texto informativo.
+
+Linha em branco cria um paragrafo novo.
+## Assim vira subtitulo
+- assim vira item de lista
+**assim fica em negrito**"></textarea>
+    <div class="grade g2">
+      <div><label for="cta_texto">Botao &mdash; texto (opcional)</label>
+        <input type="text" id="cta_texto" placeholder="Confirmar presenca"></div>
+      <div><label for="cta_url">Botao &mdash; link</label>
+        <input type="text" id="cta_url" placeholder="https://..."></div>
+    </div>
+    <label for="preheader">Preheader (previa na caixa de entrada)</label>
+    <input type="text" id="preheader" placeholder="Deixe vazio para usar o inicio da mensagem">
+  </section>
+
+  <!-- 3. BASE -->
+  <section class="card">
+    <h2><span class="n">3</span> Base de funcionarios</h2>
+    <p class="dica">Vem da sua planilha Google. Ela e a fonte da verdade &mdash; sincronize
+       sempre que atualizar a planilha.</p>
+    <div id="sheetBox"></div>
+    <div class="acoes" style="margin-top:12px">
+      <button class="b-navy" onclick="sincronizarSheet()">Sincronizar com a planilha</button>
+      <button class="b-linha" onclick="carregarResumo()">Atualizar numeros</button>
+      <button class="b-linha" onclick="acao('/api/resetar','Marcar todos como pendentes de novo? (apaga o historico desta campanha)')">Resetar status</button>
+    </div>
+    <div id="listaMsg"></div>
+    <div class="kpis" id="kpis"></div>
+    <div id="empresasBox"></div>
+  </section>
+
+  <!-- 4. REMETENTE -->
+  <section class="card">
+    <h2><span class="n">4</span> Remetente</h2>
+    <p class="dica">O dominio precisa estar autenticado no Brevo. Com o dominio autenticado, qualquer prefixo funciona.</p>
+    <div class="grade g3">
+      <div><label for="from_prefix">Prefixo</label><input type="text" id="from_prefix" placeholder="comunicados"></div>
+      <div><label for="from_domain">Dominio</label><input type="text" id="from_domain" placeholder="shild.click"></div>
+      <div><label for="from_name">Nome exibido</label><input type="text" id="from_name" placeholder="Comunicados {empresa}"></div>
+    </div>
+    <div class="chk"><input type="checkbox" id="from_per_empresa">
+      <label for="from_per_empresa" style="margin:0;text-transform:none;font-size:13px;font-weight:400;letter-spacing:0">
+        Endereco de origem unico por empresa (<span class="mono">prefixo-nome-da-empresa@dominio</span>)</label></div>
+    <label for="tag">Tag da campanha (usada para ler aberturas e cliques)</label>
+    <input type="text" id="tag" placeholder="campanha-interna">
+    <div class="aviso" id="remetenteEx">&nbsp;</div>
+  </section>
+
+  <!-- 5. ENVIO -->
+  <section class="card">
+    <h2><span class="n">5</span> Previa, teste e envio</h2>
+    <p class="dica">Sempre mande um teste para voce antes do disparo geral.</p>
+    <div class="grade g3">
+      <div><label for="test_to">Email de teste</label><input type="email" id="test_to"></div>
+      <div><label for="test_empresa">Empresa da previa</label><input type="text" id="test_empresa" value="Empresa Exemplo Ltda"></div>
+      <div><label for="test_logo">Logo da previa (URL)</label><input type="text" id="test_logo"></div>
+    </div>
+    <div class="acoes">
+      <button class="b-linha" onclick="salvar(true)">Salvar e atualizar previa</button>
+      <button class="b-navy" onclick="enviarTeste()">Enviar teste</button>
+      <button class="b-linha" onclick="testarSmtp()">Testar conexao SMTP</button>
+      <span id="smtpMsg" class="mono"></span>
+    </div>
+    <iframe id="previa" class="previa" title="previa"></iframe>
+
+    <div class="grade g3" style="margin-top:20px">
+      <div><label for="modo">Quem recebe</label>
+        <select id="modo">
+          <option value="pendentes">Somente pendentes</option>
+          <option value="reenviar_erros">Pendentes + que deram erro</option>
+          <option value="todos">Todos da base (reenvia)</option>
+        </select></div>
+      <div><label for="empresaFiltro">Limitar a uma empresa</label>
+        <select id="empresaFiltro"><option value="">Todas</option></select></div>
+      <div><label for="max_envios">Limite de envios (0 = sem limite)</label>
+        <input type="number" id="max_envios" value="0" min="0"></div>
+    </div>
+    <div class="acoes">
+      <button class="b-primario" id="btEnviar" onclick="enviarCampanha()">Disparar campanha</button>
+      <button class="b-linha" id="btParar" onclick="post('/api/parar')" disabled>Parar</button>
+      <span id="progTxt" class="mono"></span>
+    </div>
+    <div class="barra"><i id="progBar"></i></div>
+    <div id="envioMsg"></div>
+  </section>
+
+  <!-- 6. RESULTADOS -->
+  <section class="card">
+    <h2><span class="n">6</span> Resultados e correcoes</h2>
+    <p class="dica">Sincroniza aberturas e cliques do Brevo. Clique num campo azul da tabela
+       para corrigir &mdash; a correcao e gravada <b>na planilha</b>.</p>
+    <div class="acoes" style="margin-top:0">
+      <button class="b-navy" onclick="sincronizar()">Sincronizar com o Brevo</button>
+      <input type="text" id="busca" placeholder="buscar email, nome ou empresa" style="max-width:280px"
+             oninput="carregarTabela()">
+      <select id="statusFiltro" style="max-width:200px" onchange="carregarTabela()">
+        <option value="">Todos os status</option>
+        <option value="enviado">Enviados</option>
+        <option value="pendente">Pendentes</option>
+        <option value="erro">Com erro</option>
+      </select>
+    </div>
+    <div id="syncMsg"></div>
+    <div style="overflow-x:auto"><table id="tabela"></table></div>
+  </section>
+
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const CAMPOS = ["eyebrow","assunto","titulo","saudacao","mensagem","preheader","poster_url",
+                "cta_texto","cta_url","from_prefix","from_domain","from_name","tag"];
+const CHECKS = ["anexar_poster","from_per_empresa"];
+
+function msg(alvo, texto, tipo){
+  $(alvo).innerHTML = texto ? `<div class="aviso ${tipo||''}">${texto}</div>` : "";
+}
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, m => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+async function get(url){ const r = await fetch(url); return r.json(); }
+
+// ---------- edicao inline: grava na CELULA da planilha ----------
+function cel(item, campo){
+  return `<td class="edit" data-id="${item.id}" data-campo="${campo}"
+              title="clique para corrigir na planilha">${esc(item[campo]) || "<i>vazio</i>"}</td>`;
+}
+
+document.addEventListener("click", ev => {
+  const td = ev.target.closest("td.edit");
+  if(!td || td.querySelector("input")) return;
+  const valor = td.innerText.trim() === "vazio" ? "" : td.innerText.trim();
+  td.innerHTML = `<input value="${esc(valor)}" style="padding:5px 7px;font-size:13px">`;
+  const inp = td.querySelector("input");
+  inp.focus(); inp.select();
+  let encerrado = false;
+  const fim = async salvar => {
+    if(encerrado) return;
+    encerrado = true;
+    const novo = inp.value.trim();
+    if(!salvar || novo === valor){ td.innerHTML = esc(valor) || "<i>vazio</i>"; return; }
+    td.innerHTML = "gravando...";
+    const r = await fetch(`/api/pessoas/${td.dataset.id}`, {
+      method:"PATCH", headers:{"content-type":"application/json"},
+      body: JSON.stringify({[td.dataset.campo]: novo})});
+    const d = await r.json();
+    if(d.erro){ alert(d.erro); td.innerHTML = esc(valor) || "<i>vazio</i>"; return; }
+    td.innerHTML = esc(d.gravado[td.dataset.campo]) || "<i>vazio</i>";
+    td.style.background = "#eef7f1";
+    setTimeout(() => { td.style.background = ""; }, 1500);
+  };
+  inp.addEventListener("keydown", e => {
+    if(e.key === "Enter") fim(true);
+    if(e.key === "Escape") fim(false);
+  });
+  inp.addEventListener("blur", () => fim(true));
+});
+async function post(url, body){
+  const r = await fetch(url, {method:"POST", headers:{"content-type":"application/json"},
+                              body: JSON.stringify(body||{})});
+  return r.json();
+}
+
+// ---------- config ----------
+async function carregarConfig(){
+  const d = await get("/api/config");
+  const c = d.campanha || {};
+  CAMPOS.forEach(k => { if($(k) && c[k] != null) $(k).value = c[k]; });
+  CHECKS.forEach(k => { if($(k)) $(k).checked = !!c[k]; });
+  if(d.test_to && !$("test_to").value) $("test_to").value = d.test_to;
+  if(c.poster_arquivo){
+    $("posterPrev").src = "/uploads/" + c.poster_arquivo + "?v=" + Date.now();
+    $("posterPrev").style.display = "block";
+    $("posterInfo").textContent = c.poster_arquivo;
+  }
+  mostrarRemetente(d.remetente_exemplo, d.brevo_configurado || d.smtp_configurado);
+  mostrarPlano(d.plano);
+  carregarSheet();
+  pintarResumo(d.resumo, d.empresas);
+  atualizarPrevia();
+  carregarTabela();
+}
+
+// Como o poster vai sair — o ponto que mais confunde, entao fica explicito na tela.
+const EXPLICA = {
+  embutido: ["ok", "O poster vai <b>embutido no corpo</b> do email (via SMTP). " +
+                   "O funcionario ve a arte na hora, sem baixar nada."],
+  url:      ["ok", "O poster vai <b>no corpo</b> do email, carregado da URL publica."],
+  anexo:    ["erro", "O poster vai como <b>ANEXO</b> — o funcionario precisa baixar para ver. " +
+                     "Para embutir no corpo: preencha <span class='mono'>BREVO_SMTP_LOGIN</span> e " +
+                     "<span class='mono'>BREVO_SMTP_KEY</span> no <span class='mono'>.env</span> " +
+                     "(Brevo &gt; SMTP &amp; API &gt; aba SMTP) e reinicie, ou cole a URL publica abaixo."],
+  ausente:  ["", "Nenhum poster definido — o email sai so com texto."],
+};
+
+function mostrarPlano(plano){
+  if(!plano) return;
+  const [tipo, texto] = EXPLICA[plano.poster_como] || ["", ""];
+  const via = plano.transporte === "smtp" ? "relay SMTP" : "API v3";
+  $("posterStatus").innerHTML =
+    `<div class="aviso ${tipo}">${texto}<br><span style="opacity:.75">Enviando via <b>${via}</b>.</span></div>` +
+    (plano.avisos||[]).map(a => `<div class="aviso erro">${a}</div>`).join("");
+}
+
+async function testarSmtp(){
+  $("smtpMsg").textContent = "conectando...";
+  const d = await post("/api/smtp/testar");
+  $("smtpMsg").textContent = d.erro || d.mensagem;
+}
+
+function mostrarRemetente(rem, brevoOk){
+  const alerta = brevoOk ? "" :
+    " <b style='color:#a3312a'>BREVO_API_KEY nao configurada no .env &mdash; o envio vai falhar.</b>";
+  $("remetenteEx").innerHTML =
+    `Exemplo do que o funcionario ve: <b>${rem.name}</b> &lt;<span class="mono">${rem.email}</span>&gt;` + alerta;
+}
+
+function coletar(){
+  const body = {};
+  CAMPOS.forEach(k => { if($(k)) body[k] = $(k).value; });
+  CHECKS.forEach(k => { if($(k)) body[k] = $(k).checked; });
+  return body;
+}
+
+async function salvar(comPrevia){
+  const d = await post("/api/campanha", coletar());
+  if(d.remetente_exemplo) mostrarRemetente(d.remetente_exemplo, true);
+  const info = await get("/api/preview/info");
+  mostrarPlano({transporte: info.transporte, poster_como: info.poster_como, avisos: info.avisos});
+  if(comPrevia) atualizarPrevia();
+  return d;
+}
+function atualizarPrevia(){
+  const p = new URLSearchParams({empresa: $("test_empresa").value || "Empresa Exemplo Ltda",
+                                 nome: "Maria", logo: $("test_logo").value || ""});
+  $("previa").src = "/api/preview?" + p.toString() + "&v=" + Date.now();
+}
+
+// ---------- planilha Google ----------
+async function carregarSheet(){
+  const d = await get("/api/sheet/estado");
+  if(!d.configurada){
+    $("sheetBox").innerHTML = `<div class="aviso erro">${d.erro}</div>`;
+    return;
+  }
+  if(d.ok === false){
+    $("sheetBox").innerHTML = `<div class="aviso erro">${d.erro}<br>` +
+      `Compartilhe a planilha com <span class="mono">${d.conta_de_servico||"a conta de servico"}</span> como Editor.</div>`;
+    return;
+  }
+  const falta = (d.colunas_faltando||[]).length
+    ? `<br><b style="color:#a3312a">Colunas nao reconhecidas: ${d.colunas_faltando.join(", ")}</b>` : "";
+  $("sheetBox").innerHTML =
+    `<div class="aviso ok">Planilha <b>${d.planilha}</b> · aba <b>${d.aba}</b> ·
+      cabecalho na linha <b>${d.linha_cabecalho}</b><br>
+      Colunas lidas: <span class="mono">${Object.values(d.colunas_reconhecidas||{}).join(" | ")}</span>${falta}</div>`;
+}
+
+async function sincronizarSheet(){
+  msg("listaMsg", "Lendo a planilha...", "");
+  const d = await post("/api/sheet/sincronizar");
+  if(d.erro){ msg("listaMsg", d.erro, "erro"); return; }
+  msg("listaMsg", `Aba <b>${d.aba}</b>: ${d.lidos} linhas lidas · <b>${d.novos}</b> novos · ` +
+      `${d.atualizados} atualizados · ${d.removidos_da_planilha} sumiram da planilha · ` +
+      `<b>${d.total_ativos}</b> ativos.`, "ok");
+  carregarSheet();
+  carregarResumo();
+}
+
+// ---------- uploads ----------
+async function subirPoster(){
+  const f = $("posterFile").files[0];
+  if(!f){ alert("Escolha uma imagem."); return; }
+  const fd = new FormData(); fd.append("arquivo", f);
+  const r = await fetch("/api/poster", {method:"POST", body: fd});
+  const d = await r.json();
+  if(d.erro){ $("posterInfo").textContent = d.erro; return; }
+  const o = d.otimizacao || {};
+  $("posterInfo").textContent = o.mudou
+    ? `${d.arquivo} — ${o.antes_kb} KB reduzido para ${o.depois_kb} KB (${o.largura} px)`
+    : `${d.arquivo} (${d.tamanho_kb} KB)`;
+  if(o.aviso) msg("posterStatus", o.aviso, "erro");
+  $("posterPrev").src = d.preview_url + "?v=" + Date.now();
+  $("posterPrev").style.display = "block";
+  salvar(true);
+}
+
+// ---------- resumo ----------
+async function carregarResumo(){
+  const d = await get("/api/resumo");
+  pintarResumo(d.resumo, d.empresas);
+  carregarTabela();
+}
+function pintarResumo(r, empresas){
+  if(!r) return;
+  const k = (v,l) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+  $("kpis").innerHTML = k(r.total,"com email") + k(r.enviados,"enviados") + k(r.pendentes,"pendentes")
+    + k(r.erros,"erros") + k(r.abertos,"abriram") + k(r.taxa_abertura+"%","taxa abertura")
+    + k(r.clicados,"clicaram") + k(r.sem_canal,"sem email");
+
+  const sel = $("empresaFiltro"), atual = sel.value;
+  sel.innerHTML = '<option value="">Todas</option>';
+  (empresas||[]).forEach(e => {
+    const o = document.createElement("option");
+    o.value = e.empresa; o.textContent = `${e.empresa} (${e.total})`;
+    sel.appendChild(o);
+  });
+  sel.value = atual;
+
+  $("empresasBox").innerHTML = !(empresas||[]).length ? "" :
+    `<table><tr><th>Empresa</th><th>Funcionarios</th><th>Enviados</th><th>Abriram</th><th>Logo</th></tr>` +
+    empresas.map(e => `<tr><td><b>${e.empresa}</b></td><td>${e.total}</td><td>${e.enviados||0}</td>`+
+      `<td>${e.abertos||0}</td><td>${e.logo_url ? "ok" : "<span style='color:#a3312a'>faltando</span>"}</td></tr>`
+    ).join("") + `</table>`;
+}
+
+async function acao(url, pergunta){
+  if(!confirm(pergunta)) return;
+  await post(url); carregarResumo();
+}
+
+// ---------- envio ----------
+async function enviarTeste(){
+  await salvar(true);
+  const d = await post("/api/enviar", {apenas_teste:true, test_to:$("test_to").value,
+    test_empresa:$("test_empresa").value, test_nome:"Maria", test_logo:$("test_logo").value});
+  if(d.erro){ msg("envioMsg", d.erro, "erro"); return; }
+  acompanhar();
+}
+async function enviarCampanha(){
+  await salvar(false);
+  const alvo = $("empresaFiltro").value ? `da empresa "${$("empresaFiltro").value}"` : "de TODAS as empresas";
+  if(!confirm(`Disparar a campanha para os funcionarios ${alvo}?\n\nModo: ${$("modo").selectedOptions[0].text}`)) return;
+  const d = await post("/api/enviar", {modo:$("modo").value, empresa:$("empresaFiltro").value,
+                                       max_envios:Number($("max_envios").value||0)});
+  if(d.erro){ msg("envioMsg", d.erro, "erro"); return; }
+  acompanhar();
+}
+let timer = null;
+function acompanhar(){
+  clearInterval(timer);
+  timer = setInterval(async () => {
+    const p = await get("/api/status");
+    const rodando = p.status === "rodando";
+    $("btEnviar").disabled = rodando; $("btParar").disabled = !rodando;
+    const feitos = (p.enviados||0) + (p.erros||0);
+    $("progTxt").textContent = `${p.etapa||p.status||""} ${p.total ? `(${feitos}/${p.total})` : ""}`;
+    $("progBar").style.width = p.total ? (100*feitos/p.total) + "%" : "0";
+    if(p.erro) msg("envioMsg", p.erro, "erro");
+    else if((p.ultimos||[]).length) msg("envioMsg", "Falhas recentes:<br>" + p.ultimos.join("<br>"), "erro");
+    else if(p.status === "concluido") msg("envioMsg", "Envio concluido.", "ok");
+    if(!rodando){ clearInterval(timer); carregarResumo(); }
+  }, 1200);
+}
+
+// ---------- resultados ----------
+async function sincronizar(){
+  msg("syncMsg", "Consultando o Brevo...", "");
+  const d = await post("/api/sync");
+  if(d.erro){ msg("syncMsg", d.erro, "erro"); return; }
+  msg("syncMsg", `${d.eventos_lidos} eventos lidos &middot; ${d.contatos_atualizados} contatos atualizados.`, "ok");
+  pintarResumo(d.resumo, (await get("/api/resumo")).empresas);
+  carregarTabela();
+}
+async function carregarTabela(){
+  const p = new URLSearchParams({status:$("statusFiltro").value, busca:$("busca").value});
+  const d = await get("/api/destinatarios?" + p.toString());
+  const itens = d.itens || [];
+  $("tabela").innerHTML =
+    `<tr><th>Linha</th><th>Email</th><th>Nome</th><th>Empresa</th><th>Status</th>` +
+    `<th>Aberturas</th><th>Cliques</th><th>Obs.</th></tr>` +
+    (itens.length ? itens.map(i => `<tr>
+        <td class="mono" title="linha na planilha">${i.linha}</td>
+        ${cel(i,"email")}${cel(i,"nome")}${cel(i,"empresa")}
+        <td><span class="pill p-${i.status}">${i.status}</span></td>
+        <td>${i.opened_count||0}</td><td>${i.clicked_count||0}</td>
+        <td style="max-width:240px;color:#a3312a">${esc(i.erro)}</td></tr>`).join("")
+     : `<tr><td colspan="8" style="color:#808080">Base vazia. Sincronize com a planilha no passo 3.</td></tr>`);
+}
+
+CAMPOS.concat(CHECKS).forEach(k => { const el = $(k); if(el) el.addEventListener("change", () => salvar(false)); });
+carregarConfig();
+</script>
+</body>
+</html>

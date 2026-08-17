@@ -63,6 +63,32 @@ def _normalizar_chave(chave: str) -> str:
     return "-----BEGIN PRIVATE KEY-----\n" + "\n".join(linhas) + "\n-----END PRIVATE KEY-----\n"
 
 
+def _conferir_chave(chave: str) -> None:
+    """Erro comum: copiar 'private_key_id' (hash curto) em vez de 'private_key' (PEM)."""
+    if "PRIVATE KEY" in chave:
+        return
+    limpa = chave.strip()
+    if re.fullmatch(r"[0-9a-f]{20,60}", limpa):
+        raise SheetsError(
+            "GOOGLE_SA_PRIVATE_KEY recebeu o campo errado do JSON. Esse valor curto e o "
+            '"private_key_id". O que vale e o campo "private_key", que e longo e comeca '
+            'com "-----BEGIN PRIVATE KEY-----".')
+    raise SheetsError(
+        'GOOGLE_SA_PRIVATE_KEY nao parece uma chave privada: falta o trecho '
+        '"-----BEGIN PRIVATE KEY-----". Copie o campo "private_key" do JSON da conta '
+        "de servico, inteiro.")
+
+
+def _do_par() -> dict:
+    email, chave = _par_email_chave()
+    _conferir_chave(chave)
+    if "@" not in email:
+        raise SheetsError('GOOGLE_SA_EMAIL deve ser o campo "client_email" do JSON '
+                          "(algo como conta@projeto.iam.gserviceaccount.com).")
+    return {"type": "service_account", "client_email": email,
+            "private_key": _normalizar_chave(chave), "token_uri": TOKEN_URI}
+
+
 def _info_credencial() -> dict:
     """Aceita o JSON inteiro OU so o par email + chave privada.
 
@@ -70,27 +96,38 @@ def _info_credencial() -> dict:
     e a CHAVE PRIVADA, nao um segredo curto. Ver GOOGLE_SA_PRIVATE_KEY no .env.example.
     """
     bruto = _credencial_bruta().strip()
+    tem_par = all(_par_email_chave())
+
     if not bruto:
-        email, chave = _par_email_chave()
-        if email and chave:
-            return {"type": "service_account", "client_email": email,
-                    "private_key": _normalizar_chave(chave), "token_uri": TOKEN_URI}
+        if tem_par:
+            return _do_par()
         raise SheetsError(
             "Credencial do Google ausente. Use GOOGLE_SA_EMAIL + GOOGLE_SA_PRIVATE_KEY "
             "(duas variaveis), ou GOOGLE_CREDENTIALS_JSON com o JSON inteiro da conta "
             "de servico, ou GOOGLE_CREDENTIALS_FILE com o caminho do arquivo.")
+
     try:
         info = json.loads(bruto)
     except json.JSONDecodeError as exc:
+        # Painel de env costuma truncar JSON com quebra de linha, sobrando so "{".
+        # Se o par estiver preenchido, ele resolve — nao faz sentido travar por causa
+        # de uma variavel quebrada que o usuario nem pretendia usar.
+        if tem_par:
+            return _do_par()
         raise SheetsError(
-            f"GOOGLE_CREDENTIALS_JSON nao e um JSON valido: {exc}. Se preferir nao colar "
-            "o JSON, use GOOGLE_SA_EMAIL + GOOGLE_SA_PRIVATE_KEY.") from exc
+            f"GOOGLE_CREDENTIALS_JSON nao e um JSON valido ({exc}). O painel do Coolify "
+            "quebra JSON com varias linhas — cole tudo numa linha so, ou (mais simples) "
+            "apague essa variavel e use GOOGLE_SA_EMAIL + GOOGLE_SA_PRIVATE_KEY.") from exc
+
     if info.get("type") != "service_account":
+        if tem_par:
+            return _do_par()
         raise SheetsError("A credencial precisa ser de uma CONTA DE SERVICO "
                           '(o JSON tem "type": "service_account"). client_id/client_secret '
                           "de OAuth nao servem aqui — nao ha ninguem para autorizar no servidor.")
     info.setdefault("token_uri", TOKEN_URI)
     if "private_key" in info:
+        _conferir_chave(info["private_key"])
         info["private_key"] = _normalizar_chave(info["private_key"])
     return info
 

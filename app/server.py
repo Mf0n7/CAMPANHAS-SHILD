@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from . import (arquivos, campaign, compositor, dados, db, imagem, mailer, sheets,
                smtp_mailer, template, wa_campaign, whatsapp)
+from . import config as config_env
 from .config import settings
 
 app = FastAPI(title="Campanhas SHILD")
@@ -40,7 +41,7 @@ def _seguro(nome: str) -> str:
 
 
 def _avisos(camp: dict, plano: dict) -> list[str]:
-    avisos = list(plano["avisos"])
+    avisos = list(config_env.PROBLEMAS) + list(plano["avisos"])
     desconhecidas = template.variaveis_desconhecidas(camp)
     if desconhecidas:
         avisos.append("Variavel que nao existe e vai sair literal no email: "
@@ -70,7 +71,7 @@ def saude():
     consegue abrir a tela para descobrir qual e o problema. O estado do banco vai no
     corpo da resposta; para uma sonda de readiness, use /saude/pronto.
     """
-    corpo = {"ok": True, "banco_alvo": db.alvo()}
+    corpo = {"ok": True, "banco_alvo": db.alvo(), "config_problemas": config_env.PROBLEMAS}
     try:
         corpo["banco"] = db.ping()
         corpo["banco_ok"] = True

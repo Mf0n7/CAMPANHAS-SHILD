@@ -11,8 +11,36 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
+# Problemas encontrados ao ler o ambiente. Vao para a tela e para /saude em vez de
+# derrubar o processo: uma variavel numerica malformada nao deve impedir o sistema de
+# subir — se impedir, voce nem consegue abrir a tela para descobrir qual e.
+PROBLEMAS: list[str] = []
+
+
 def _bool(raw: str) -> bool:
     return str(raw).strip().lower() in ("1", "true", "sim", "yes", "on")
+
+
+def _num(nome: str, padrao: str, tipo):
+    bruto = os.getenv(nome, padrao)
+    texto = str(bruto).strip().strip('"').strip("'")
+    try:
+        return tipo(texto)
+    except (TypeError, ValueError):
+        PROBLEMAS.append(
+            f"{nome} tem valor invalido ({texto[:60]!r}); usando o padrao {padrao}. "
+            "Causa tipica: as variaveis foram coladas grudadas e uma engoliu a seguinte — "
+            "confira se cada uma esta numa linha propria."
+        )
+        return tipo(padrao)
+
+
+def _int(nome: str, padrao: str) -> int:
+    return _num(nome, padrao, int)
+
+
+def _float(nome: str, padrao: str) -> float:
+    return _num(nome, padrao, float)
 
 
 def _database_url() -> str:
@@ -33,14 +61,14 @@ def _database_url() -> str:
 @dataclass
 class Settings:
     host: str = os.getenv("HOST", "127.0.0.1")
-    port: int = int(os.getenv("PORT", "8010"))
+    port: int = _int("PORT", "8010")
     output_dir: Path = BASE_DIR / os.getenv("OUTPUT_DIR", "saidas")
     database_url: str = _database_url()
 
     # ---- Planilha Google (fonte da verdade dos funcionarios) ----
     sheet_id: str = os.getenv("SHEET_ID", "").strip()
     sheet_tab: str = os.getenv("SHEET_TAB", "").strip()
-    sheet_header_row: int = int(os.getenv("SHEET_HEADER_ROW", "5"))
+    sheet_header_row: int = _int("SHEET_HEADER_ROW", "5")
     google_credentials_json: str = os.getenv("GOOGLE_CREDENTIALS_JSON", "").strip()
     google_credentials_file: str = os.getenv("GOOGLE_CREDENTIALS_FILE", "").strip()
     # alternativa enxuta ao JSON inteiro: so o par email + chave privada
@@ -52,7 +80,7 @@ class Settings:
     # Relay SMTP: unico caminho que embute a imagem DENTRO do email (a API v3 nao
     # suporta CID/inline — so aceita anexo ou URL publica).
     smtp_host: str = os.getenv("BREVO_SMTP_HOST", "smtp-relay.brevo.com").strip()
-    smtp_port: int = int(os.getenv("BREVO_SMTP_PORT", "587"))
+    smtp_port: int = _int("BREVO_SMTP_PORT", "587")
     smtp_login: str = os.getenv("BREVO_SMTP_LOGIN", "").strip()
     smtp_key: str = os.getenv("BREVO_SMTP_KEY", "").strip()
     transporte: str = os.getenv("TRANSPORTE", "auto").strip().lower()
@@ -64,13 +92,13 @@ class Settings:
     mail_unsubscribe_email: str = os.getenv("MAIL_UNSUBSCRIBE_EMAIL", "").strip()
     mail_test_to: str = os.getenv("MAIL_TEST_TO", "").strip()
     campaign_tag: str = os.getenv("CAMPAIGN_TAG", "campanha-interna").strip()
-    send_delay_seconds: float = float(os.getenv("SEND_DELAY_SECONDS", "1.5"))
+    send_delay_seconds: float = _float("SEND_DELAY_SECONDS", "1.5")
 
     # ---- WhatsApp (Evolution API, instancia propria) ----
     evo_url: str = os.getenv("EVOLUTION_API_URL", "").strip()
     evo_key: str = os.getenv("EVOLUTION_API_KEY", "").strip()
     evo_instance: str = os.getenv("EVOLUTION_INSTANCE", "").strip()
-    wa_delay_seconds: float = float(os.getenv("WA_DELAY_SECONDS", "8"))
+    wa_delay_seconds: float = _float("WA_DELAY_SECONDS", "8")
     wa_ddd_padrao: str = os.getenv("WA_DDD_PADRAO", "").strip()
 
     # ---- Marca ----

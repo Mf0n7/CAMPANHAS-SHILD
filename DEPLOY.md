@@ -156,10 +156,24 @@ Depois:
 
 ## 6. Quando dá errado
 
-### O container sobe e cai pelo healthcheck
+### O container sobe e cai no mesmo instante
 
-Só acontece se o **processo** morrer — `/saude` não depende mais do banco. Veja os logs
-do container no Coolify; normalmente é erro de import ou porta ocupada.
+`/saude` não depende do banco, então isso é o **processo morrendo**. A causa mais comum
+é variável de ambiente colada na anterior:
+
+```
+SHEET_HEADER_ROW=5BREVO_API_KEY=xkeysib-...
+                 ^^^^^^^^^^^^^^^^^^^^^^^^ virou parte do valor
+```
+
+Ao colar um bloco de variáveis no Coolify, confira se **cada uma ficou na sua própria
+linha** — o editor às vezes junta a última com a primeira da colagem seguinte.
+
+O sistema não morre mais por isso: valor numérico inválido cai no padrão e o problema
+aparece em `/saude` (campo `config_problemas`) e no topo da tela. Se `PORT` for o afetado,
+porém, a porta muda e o healthcheck falha — aí o container cai mesmo.
+
+Se as variáveis estiverem certas, veja os logs do container no Coolify.
 
 > `/saude/pronto` existe e devolve 503 enquanto o banco não responde. **Não** use ele como
 > healthcheck: o container passaria a reiniciar em loop justo quando você precisa abrir a
@@ -188,6 +202,26 @@ alguém clicar em "Permitir" no navegador, e no servidor não há ninguém.
 Baixe a chave de uma **conta de serviço** (seção 2) — o JSON dela tem
 `"type": "service_account"` e um `"private_key"`. Ou use `GOOGLE_SA_EMAIL` +
 `GOOGLE_SA_PRIVATE_KEY`.
+
+### "GOOGLE_SA_PRIVATE_KEY recebeu o campo errado do JSON"
+
+Confusão fácil: o JSON tem **dois** campos parecidos.
+
+| Campo no JSON | Formato | Serve? |
+|---|---|---|
+| `private_key_id` | `f89b2228e93bb672...` (hash curto) | não |
+| `private_key` | `-----BEGIN PRIVATE KEY-----\nMIIEvg...` (longo) | **sim** |
+
+Copie o `private_key` inteiro, incluindo o `-----BEGIN`/`-----END`.
+
+### "GOOGLE_CREDENTIALS_JSON não é um JSON válido"
+
+O painel do Coolify quebra valores com várias linhas — colar o JSON formatado deixa só
+o `{`. Ou cole tudo numa linha só, ou (mais simples) **apague essa variável** e use
+`GOOGLE_SA_EMAIL` + `GOOGLE_SA_PRIVATE_KEY`.
+
+Se o par estiver correto, o sistema o usa mesmo com o JSON quebrado — mas deixar lixo
+na variável só atrapalha o diagnóstico depois.
 
 ### "Sem acesso à planilha (HTTP 403/404)"
 

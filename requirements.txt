@@ -2,12 +2,8 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 httpx==0.28.1
 Pillow==11.1.0
+openpyxl==3.1.5
 SQLAlchemy==2.0.36
 psycopg[binary]==3.2.3
-gspread==6.1.4
-google-auth==2.37.0
-# Sem ela o google-auth cai num assinador RSA em Python puro. Funciona, mas a
-# assinatura JWT roda a cada renovacao de token — melhor deixar deterministico.
-cryptography==50.0.0
 python-dotenv==1.0.1
 python-multipart==0.0.20

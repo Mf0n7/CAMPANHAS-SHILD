@@ -65,16 +65,6 @@ class Settings:
     output_dir: Path = BASE_DIR / os.getenv("OUTPUT_DIR", "saidas")
     database_url: str = _database_url()
 
-    # ---- Planilha Google (fonte da verdade dos funcionarios) ----
-    sheet_id: str = os.getenv("SHEET_ID", "").strip()
-    sheet_tab: str = os.getenv("SHEET_TAB", "").strip()
-    sheet_header_row: int = _int("SHEET_HEADER_ROW", "5")
-    google_credentials_json: str = os.getenv("GOOGLE_CREDENTIALS_JSON", "").strip()
-    google_credentials_file: str = os.getenv("GOOGLE_CREDENTIALS_FILE", "").strip()
-    # alternativa enxuta ao JSON inteiro: so o par email + chave privada
-    google_sa_email: str = os.getenv("GOOGLE_SA_EMAIL", "").strip()
-    google_sa_private_key: str = os.getenv("GOOGLE_SA_PRIVATE_KEY", "").strip()
-
     # ---- Brevo ----
     brevo_api_key: str = os.getenv("BREVO_API_KEY", "").strip()
     # Relay SMTP: unico caminho que embute a imagem DENTRO do email (a API v3 nao

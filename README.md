@@ -8,9 +8,8 @@ em **dois canais independentes**:
 | **Email**    | <http://127.0.0.1:8010/>        | Email HTML com a logo da empresa dele e o poster          |
 | **WhatsApp** | <http://127.0.0.1:8010/whatsapp>| Uma imagem: `[logo SHILD \| logo da empresa]` + poster    |
 
-Você anexa o **poster**, escreve a **mensagem** e dispara. Os destinatários vêm da sua
-**planilha Google de controle de funcionários** — ela é o banco de dados do sistema, e o
-que você corrigir pela tela é gravado de volta nela.
+Você anexa o **poster**, escreve a **mensagem**, importa a **planilha de funcionários**,
+marca **quais empresas recebem** e dispara.
 
 O conteúdo da campanha é o mesmo nos dois canais; cada um tem ritmo e status próprios.
 
@@ -20,11 +19,11 @@ O conteúdo da campanha é o mesmo nos dois canais; cada um tem ritmo e status p
 ## Arquitetura
 
 ```
-Planilha Google  ──le/grava──►  aplicação (FastAPI)  ──►  Brevo (email)
- (funcionarios)                        │                   Evolution API (whatsapp)
-                                       ▼
-                                   Postgres
-                     (poster, texto da campanha, status de disparo)
+planilha .xlsx/.csv  ──importa──►  aplicação (FastAPI)  ──►  Brevo (email)
+                                          │                  Evolution API (whatsapp)
+                                          ▼
+                                      Postgres
+              (funcionários, poster, texto da campanha, status de disparo)
 ```
 
 Um container só, sem volume: o poster e o texto vivem no banco, então redeploy não perde nada.
@@ -64,11 +63,17 @@ Usa **EMPRESA**, **LOGO DA EMPRESA**, **NOME COMPLETO**, **EMAIL** e **TELEFONE*
 RG, CPF e datas são ignorados. A ordem não importa e o cabeçalho aceita variações
 (`e-mail`, `razão social`, `colaborador`, `celular`…).
 
-O botão **Sincronizar com a planilha** traz o estado atual. Linha nova entra, linha alterada
-atualiza, linha que sumiu para de receber — sem perder o histórico de quem já recebeu.
+O sistema acha o cabeçalho sozinho (não precisa estar na primeira linha) e reconhece
+variações de nome (`e-mail`, `razão social`, `colaborador`, `celular`…).
 
-Na tabela de destinatários, os campos em azul são editáveis: a correção é gravada
-**na célula da planilha**, não só aqui.
+Reimportar é seguro: a identidade de cada pessoa é **empresa + email/telefone**, não a
+posição no arquivo. Corrigir e reimportar não embaralha quem já recebeu.
+
+Depois de importar, o passo 4 lista as empresas com caixa de seleção — só as marcadas
+recebem. A seleção do email é independente da do WhatsApp.
+
+Na tabela de destinatários, os campos em azul são editáveis. A correção vale na base até
+a próxima importação daquela pessoa.
 
 ## Links de imagem do Google Drive
 
@@ -145,10 +150,9 @@ para cada campanha** para os números não se misturarem.
 ```
 app/config.py       lê as variáveis de ambiente
 app/db.py           tabelas e conexão (Postgres em produção, SQLite local)
-app/sheets.py       planilha Google: leitura e gravação de célula
-app/dados.py        pessoas (espelho da planilha) e envios (status por canal)
+app/dados.py        pessoas, seleção de empresas e envios (status por canal)
 app/arquivos.py     poster no banco, materializado em cache quando precisa
-app/recipients.py   reconhece as colunas do cabeçalho da planilha
+app/recipients.py   lê .csv/.xlsx e reconhece as colunas do cabeçalho
 app/links.py        converte links do Drive; slug do nome da empresa
 app/fones.py        normaliza telefone brasileiro
 app/textfmt.py      mensagem em texto simples -> HTML e -> WhatsApp
@@ -179,10 +183,6 @@ EVOLUTION_API_KEY=token-da-instancia
 EVOLUTION_INSTANCE=nome-da-instancia
 ```
 
-A **planilha de controle de funcionários serve direto**, com o cabeçalho
-`EMPRESA, LOGO DA EMPRESA, NOME COMPLETO, RG, CPF, EMAIL, TELEFONE, DATA NASC., DATA INGRESSO`.
-As colunas não usadas são ignoradas.
-
 Antes de disparar, use **Validar números no WhatsApp**: resolve o nono dígito (em DDD ≥ 31
 o WhatsApp costuma guardar o número sem o 9) e marca quem não tem WhatsApp.
 
@@ -190,5 +190,6 @@ Intervalo padrão de 8 s entre mensagens. Disparo rápido em massa é a forma ma
 um número ser bloqueado — comece com poucos envios.
 
 Detalhes: seções 15 a 23 do [MANUAL.md](MANUAL.md).
-#   C A M P A N H A S - S H I L D  
+#   C A M P A N H A S - S H I L D 
+ 
  

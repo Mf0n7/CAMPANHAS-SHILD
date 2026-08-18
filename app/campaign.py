@@ -1,6 +1,6 @@
 """Campanha por email: configuracao, plano de envio, disparo e sync de eventos.
 
-Os destinatarios vem da planilha Google (ver `dados.py`); aqui so cuidamos do
+Os destinatarios vem da planilha importada (ver `dados.py`); aqui so cuidamos do
 conteudo, de como o email sai e do laco de envio.
 """
 from __future__ import annotations

@@ -27,11 +27,6 @@ services:
       # ---- banco (obrigatorio) ----
       DATABASE_URL: ${DATABASE_URL}
 
-      # ---- planilha Google (obrigatorio) ----
-      SHEET_ID: ${SHEET_ID}
-      SHEET_TAB: ${SHEET_TAB:-}
-      SHEET_HEADER_ROW: ${SHEET_HEADER_ROW:-5}
-      GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON}
 
       # ---- email (Brevo) ----
       BREVO_API_KEY: ${BREVO_API_KEY:-}

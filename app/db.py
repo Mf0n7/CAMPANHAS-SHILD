@@ -13,7 +13,8 @@ import json
 from datetime import datetime, timezone
 
 from sqlalchemy import (Boolean, Column, DateTime, Integer, LargeBinary, MetaData, String, Table,
-                        Text, UniqueConstraint, create_engine, delete, func, insert, select, update)
+                        Text, UniqueConstraint, create_engine, delete, func, insert, inspect,
+                        select, text, update)
 from sqlalchemy.engine import Engine, make_url
 
 from .config import settings
@@ -37,14 +38,15 @@ arquivos = Table(
     Column("atualizado_em", DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
 )
 
-# ---- pessoas: espelho da planilha Google ------------------------------------
-# `linha` e o numero da linha na planilha: e a identidade do registro e o endereco
-# usado para gravar a correcao de volta.
+# ---- pessoas: espelho da planilha importada ---------------------------------
 pessoas = Table(
     "pessoas", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("aba", String(120), nullable=False),
-    Column("linha", Integer, nullable=False),
+    # `chave` = empresa normalizada + email/telefone. E a identidade estavel entre
+    # importacoes: reordenar as linhas do arquivo nao pode trocar quem ja recebeu.
+    Column("chave", String(320), nullable=False, unique=True),
+    Column("origem", Text, default=""),            # arquivo de onde veio
+    Column("linha", Integer, default=0),           # linha no arquivo, so para referencia
     Column("empresa", Text, default=""),
     Column("logo_url", Text, default=""),
     Column("nome", Text, default=""),
@@ -53,9 +55,8 @@ pessoas = Table(
     Column("telefone_erro", Text, default=""),
     Column("jid", Text, default=""),
     Column("tem_whatsapp", Integer, default=-1),      # -1 nao verificado, 0 nao, 1 sim
-    Column("ativo", Boolean, default=True),           # False = sumiu da planilha
+    Column("ativo", Boolean, default=True),           # False = saiu da ultima importacao
     Column("sincronizado_em", DateTime(timezone=True)),
-    UniqueConstraint("aba", "linha", name="uq_pessoa_linha"),
 )
 
 # ---- envios: um por pessoa por canal ----------------------------------------
@@ -107,6 +108,7 @@ def engine() -> Engine:
             kw.update(pool_size=5, max_overflow=5, pool_recycle=1800,
                       connect_args={"connect_timeout": 5})
         novo = create_engine(url, **kw)
+        _migrar(novo)
         # `create_all` so depois de `create_engine`, e a atribuicao a `_engine` so
         # depois das duas: se o banco estiver fora do ar agora, a proxima chamada
         # tenta tudo de novo. Atribuir antes deixaria o processo com um engine sem
@@ -114,6 +116,23 @@ def engine() -> Engine:
         metadata.create_all(novo)
         _engine = novo
     return _engine
+
+
+def _migrar(eng: Engine) -> None:
+    """Recria `pessoas` se ela vier do esquema antigo (identidade por aba+linha).
+
+    A base de pessoas e um espelho do arquivo importado — refazer custa uma importacao.
+    `envios` acompanha porque aponta para os ids antigos.
+    """
+    insp = inspect(eng)
+    if not insp.has_table("pessoas"):
+        return
+    colunas = {c["name"] for c in insp.get_columns("pessoas")}
+    if "chave" in colunas:
+        return
+    with eng.begin() as c:
+        c.execute(text("DROP TABLE IF EXISTS envios"))
+        c.execute(text("DROP TABLE IF EXISTS pessoas"))
 
 
 def agora() -> datetime:

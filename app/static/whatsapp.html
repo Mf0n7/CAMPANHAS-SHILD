@@ -136,25 +136,45 @@ Aceita as mesmas variaveis: {empresa}, {nome}, {primeiro_nome}, {virgula_nome}."
   <!-- 3. BASE -->
   <section class="card">
     <h2><span class="n">3</span> Base de funcionarios</h2>
-    <p class="dica">Vem da mesma planilha Google do envio por email. Usa
-       <code>EMPRESA</code>, <code>LOGO DA EMPRESA</code>, <code>NOME COMPLETO</code> e
-       <code>TELEFONE</code>; RG, CPF e datas sao ignorados.</p>
-    <div id="sheetBox"></div>
-    <div class="acoes" style="margin-top:12px">
-      <button class="b-navy" onclick="sincronizarSheet()">Sincronizar com a planilha</button>
+    <p class="dica">A mesma planilha do envio por email. Usa <code>EMPRESA</code>,
+       <code>LOGO DA EMPRESA</code>, <code>NOME COMPLETO</code> e <code>TELEFONE</code>;
+       RG, CPF e datas sao ignorados.</p>
+    <div class="fileup">
+      <input type="file" id="listaFile" accept=".csv,.xlsx,.xlsm,.txt">
+      <button class="b-navy" onclick="subirLista()">Importar planilha</button>
+      <span class="chk" style="display:inline-flex;margin:0 0 0 10px">
+        <input type="checkbox" id="substituir"> Substituir a base atual</span>
+      <input type="text" id="ddd_padrao" placeholder="DDD padrao (ex: 86)"
+             style="max-width:170px;display:inline-block;width:auto;margin-left:10px">
+      <input type="text" id="linha_cabecalho" placeholder="linha do cabecalho (auto)"
+             style="max-width:210px;display:inline-block;width:auto;margin-left:10px">
+    </div>
+    <div id="listaMsg"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="acoes">
       <button class="b-zap" onclick="validar()">Validar numeros no WhatsApp</button>
       <button class="b-linha" onclick="carregarResumo()">Atualizar numeros</button>
       <button class="b-linha" onclick="acao('/api/wa/resetar','Marcar todos como pendentes de novo? (apaga o historico desta campanha)')">Resetar status</button>
     </div>
-    <div id="listaMsg"></div>
     <div id="validaMsg"></div>
-    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <!-- 3b. EMPRESAS -->
+  <section class="card">
+    <h2><span class="n">4</span> Quais empresas recebem</h2>
+    <p class="dica">Selecao independente da do email &mdash; da para mandar email para todas
+       e WhatsApp so para algumas.</p>
+    <div class="acoes" style="margin-top:0">
+      <button class="b-linha" onclick="marcarTodas(true)">Marcar todas</button>
+      <button class="b-linha" onclick="marcarTodas(false)">Desmarcar todas</button>
+      <span id="selMsg" class="mono"></span>
+    </div>
     <div id="empresasBox"></div>
   </section>
 
   <!-- 4. ENVIO -->
   <section class="card">
-    <h2><span class="n">4</span> Teste e disparo</h2>
+    <h2><span class="n">5</span> Teste e disparo</h2>
     <p class="dica">Mande sempre um teste para o seu proprio numero antes.</p>
     <div class="grade g3">
       <div><label for="test_to">Numero de teste</label>
@@ -174,8 +194,6 @@ Aceita as mesmas variaveis: {empresa}, {nome}, {primeiro_nome}, {virgula_nome}."
           <option value="reenviar_erros">Pendentes + que deram erro</option>
           <option value="todos">Todos da base (reenvia)</option>
         </select></div>
-      <div><label for="empresaFiltro">Limitar a uma empresa</label>
-        <select id="empresaFiltro"><option value="">Todas</option></select></div>
       <div><label for="max_envios">Limite de envios (0 = sem limite)</label>
         <input type="number" id="max_envios" value="0" min="0"></div>
     </div>
@@ -194,7 +212,7 @@ Aceita as mesmas variaveis: {empresa}, {nome}, {primeiro_nome}, {virgula_nome}."
 
   <!-- 5. TABELA -->
   <section class="card">
-    <h2><span class="n">5</span> Destinatarios e correcoes</h2>
+    <h2><span class="n">6</span> Destinatarios e correcoes</h2>
     <p class="dica">Clique num campo azul para corrigir &mdash; a correcao e gravada
        <b>na planilha</b>. Telefone corrigido volta para "nao verificado".</p>
     <div class="acoes" style="margin-top:0">
@@ -241,7 +259,6 @@ async function carregarConfig(){
     `Disparo rapido em massa e a forma mais comum de o numero ser bloqueado pelo WhatsApp — ` +
     `comece com poucos envios e aumente aos poucos.`;
   pintarPlano(d.plano);
-  carregarSheet();
   pintarResumo(d.resumo, d.empresas);
   carregarTabela();
 }
@@ -286,28 +303,63 @@ async function limparCache(){
   montarPrevia();
 }
 
-async function carregarSheet(){
-  const d = await get("/api/sheet/estado");
-  if(!d.configurada){ $("sheetBox").innerHTML = `<div class="aviso erro">${esc(d.erro)}</div>`; return; }
-  if(d.ok === false){
-    $("sheetBox").innerHTML = `<div class="aviso erro">${esc(d.erro)}<br>Compartilhe a planilha com ` +
-      `<span class="mono">${esc(d.conta_de_servico)||"a conta de servico"}</span> como Editor.</div>`;
-    return;
-  }
-  $("sheetBox").innerHTML =
-    `<div class="aviso ok">Planilha <b>${esc(d.planilha)}</b> · aba <b>${esc(d.aba)}</b> ·
-      cabecalho na linha <b>${d.linha_cabecalho}</b><br>
-      Colunas lidas: <span class="mono">${Object.values(d.colunas_reconhecidas||{}).map(esc).join(" | ")}</span></div>`;
+async function subirLista(){
+  const f = $("listaFile").files[0];
+  if(!f){ alert("Escolha o arquivo .csv ou .xlsx."); return; }
+  msg("listaMsg", "Lendo a planilha...", "");
+  const fd = new FormData();
+  fd.append("arquivo", f);
+  fd.append("substituir", $("substituir").checked ? "1" : "0");
+  fd.append("ddd_padrao", $("ddd_padrao").value || "");
+  fd.append("linha_cabecalho", $("linha_cabecalho").value || "0");
+  const d = await (await fetch("/api/lista", {method:"POST", body: fd})).json();
+  if(d.erro){ msg("listaMsg", esc(d.erro), "erro"); return; }
+  let txt = `<b>${esc(d.arquivo)}</b> · cabecalho na linha <b>${d.linha_cabecalho}</b> · ` +
+    `${d.lidos} lidos · <b>${d.novos}</b> novos · ${d.atualizados} atualizados · ` +
+    `${d.duplicados} duplicados · ${d.invalidos} sem email nem telefone` +
+    `<br>Colunas lidas: <span class="mono">${Object.values(d.colunas_reconhecidas||{}).map(esc).join(" | ")}</span>`;
+  if((d.problemas||[]).length) txt += "<br><br>Linhas com problema:<br>" + d.problemas.map(esc).join("<br>");
+  msg("listaMsg", txt, (d.invalidos || (d.problemas||[]).length) ? "" : "ok");
+  carregarResumo();
 }
 
-async function sincronizarSheet(){
-  msg("listaMsg", "Lendo a planilha...", "");
-  const d = await post("/api/sheet/sincronizar");
-  if(d.erro){ msg("listaMsg", esc(d.erro), "erro"); return; }
-  msg("listaMsg", `Aba <b>${esc(d.aba)}</b>: ${d.lidos} linhas · <b>${d.novos}</b> novos · ` +
-      `${d.atualizados} atualizados · <b>${d.total_ativos}</b> ativos.`, "ok");
-  carregarSheet();
-  carregarResumo();
+// ---------- selecao de empresas ----------
+function pintarEmpresas(lista){
+  const empresas = lista || [];
+  if(!empresas.length){
+    $("empresasBox").innerHTML = `<p style="color:#808080;margin-top:14px">
+      Nenhuma empresa na base. Importe a planilha no passo 3.</p>`;
+    return;
+  }
+  $("empresasBox").innerHTML =
+    `<table><tr><th style="width:34px"></th><th>Empresa</th><th>Funcionarios</th>
+      <th>Enviados</th><th>Sem WhatsApp</th><th>Logo</th></tr>` +
+    empresas.map(e => `<tr>
+      <td><input type="checkbox" class="selEmp" value="${esc(e.empresa)}"
+                 ${e.selecionada ? "checked" : ""} onchange="salvarSelecao()"
+                 style="width:16px;height:16px;accent-color:var(--ouro)"></td>
+      <td><b>${esc(e.empresa)}</b></td><td>${e.total}</td><td>${e.enviados||0}</td>
+      <td>${e.sem_whatsapp||0}</td>
+      <td>${e.logo_url ? "ok" : "<span style='color:#a3312a'>faltando</span>"}</td></tr>`).join("") +
+    `</table>`;
+}
+
+function marcarTodas(valor){
+  document.querySelectorAll(".selEmp").forEach(c => { c.checked = valor; });
+  salvarSelecao();
+}
+
+async function salvarSelecao(){
+  const marcadas = [...document.querySelectorAll(".selEmp:checked")].map(c => c.value);
+  const todas = document.querySelectorAll(".selEmp").length;
+  const d = await post("/api/empresas/selecao",
+                       {canal: "whatsapp", empresas: marcadas.length === todas ? [] : marcadas});
+  if(d.erro){ $("selMsg").textContent = d.erro; return; }
+  const r = d.resumo || {};
+  $("selMsg").textContent = marcadas.length === todas
+    ? `todas as ${todas} empresas · ${r.selecionados} destinatarios`
+    : `${marcadas.length} de ${todas} empresas · ${r.selecionados} destinatarios`;
+  pintarResumo(r, null);
 }
 
 // ---------- edicao inline: grava na CELULA da planilha ----------
@@ -363,27 +415,23 @@ async function carregarResumo(){
 function pintarResumo(r, empresas){
   if(!r) return;
   const k = (v,l) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
-  $("kpis").innerHTML = k(r.total,"com telefone") + k(r.enviados,"enviados") + k(r.pendentes,"pendentes")
-    + k(r.erros,"erros") + k(r.com_whatsapp,"tem whatsapp") + k(r.sem_whatsapp,"sem whatsapp")
-    + k(r.nao_verificados,"nao verificados") + k(r.sem_canal,"sem telefone");
+  $("kpis").innerHTML = k(r.total,"com telefone") + k(r.selecionados,"vao receber")
+    + k(r.enviados,"enviados") + k(r.pendentes,"pendentes") + k(r.erros,"erros")
+    + k(r.com_whatsapp,"tem whatsapp") + k(r.sem_whatsapp,"sem whatsapp")
+    + k(r.nao_verificados,"nao verificados");
 
-  for(const id of ["empresaFiltro","empresaPrevia"]){
-    const sel = $(id), atual = sel.value;
-    sel.innerHTML = id === "empresaFiltro" ? '<option value="">Todas</option>' : "";
-    (empresas||[]).forEach(e => {
+  if(empresas){
+    const sel = $("empresaPrevia"), atual = sel.value;
+    sel.innerHTML = "";
+    empresas.forEach(e => {
       const o = document.createElement("option");
       o.value = e.empresa; o.textContent = `${e.empresa} (${e.total})`;
       o.dataset.logo = e.logo_url || "";
       sel.appendChild(o);
     });
     sel.value = atual;
+    pintarEmpresas(empresas);
   }
-
-  $("empresasBox").innerHTML = !(empresas||[]).length ? "" :
-    `<table><tr><th>Empresa</th><th>Funcionarios</th><th>Enviados</th><th>Sem WhatsApp</th><th>Logo</th></tr>` +
-    empresas.map(e => `<tr><td><b>${esc(e.empresa)}</b></td><td>${e.total}</td><td>${e.enviados||0}</td>` +
-      `<td>${e.sem_whatsapp||0}</td>` +
-      `<td>${e.logo_url ? "ok" : "<span style='color:#a3312a'>faltando</span>"}</td></tr>`).join("") + `</table>`;
 }
 
 async function acao(url, pergunta){ if(confirm(pergunta)){ await post(url); carregarResumo(); } }
@@ -397,9 +445,14 @@ async function enviarTeste(){
 }
 
 async function disparar(){
-  const alvo = $("empresaFiltro").value ? `da empresa "${$("empresaFiltro").value}"` : "de TODAS as empresas";
-  if(!confirm(`Disparar no WhatsApp para os funcionarios ${alvo}?\n\nModo: ${$("modo").selectedOptions[0].text}`)) return;
-  const d = await post("/api/wa/enviar", {modo:$("modo").value, empresa:$("empresaFiltro").value,
+  const marcadas = [...document.querySelectorAll(".selEmp:checked")].map(c => c.value);
+  const total = document.querySelectorAll(".selEmp").length;
+  if(!total){ alert("Base vazia. Importe a planilha no passo 3."); return; }
+  if(!marcadas.length){ alert("Nenhuma empresa marcada no passo 4."); return; }
+  const alvo = marcadas.length === total ? `TODAS as ${total} empresas`
+                                         : `${marcadas.length} de ${total}:\n· ${marcadas.join("\n· ")}`;
+  if(!confirm(`Disparar no WhatsApp para ${alvo}\n\nModo: ${$("modo").selectedOptions[0].text}`)) return;
+  const d = await post("/api/wa/enviar", {modo:$("modo").value,
     max_envios:Number($("max_envios").value||0), pular_sem_whatsapp:$("pular_sem_whatsapp").checked});
   if(d.erro){ msg("envioMsg", esc(d.erro), "erro"); return; }
   acompanhar();
@@ -436,7 +489,7 @@ async function carregarTabela(){
         <td>${zap(i.tem_whatsapp)}</td>
         <td><span class="pill p-${i.status}">${i.status}</span></td>
         <td style="max-width:240px;color:#a3312a">${esc(i.erro || i.telefone_erro)}</td></tr>`).join("")
-     : `<tr><td colspan="7" style="color:#808080">Base vazia. Sincronize com a planilha no passo 3.</td></tr>`);
+     : `<tr><td colspan="7" style="color:#808080">Base vazia. Importe a planilha no passo 3.</td></tr>`);
 }
 
 carregarConfig();

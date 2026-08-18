@@ -14,34 +14,43 @@ cd "C:\Users\Matheus Fontenele\Documents\projetos\SHILD\shild-system\RSPV capaig
 
 Abre em <http://127.0.0.1:8010>. Para parar: `Ctrl+C` na janela do terminal.
 
-O que você digita na tela fica salvo em `saidas/campanha.json` assim que você sai do campo —
-pode fechar e abrir de novo sem perder nada. A lista de funcionários fica em
-`saidas/campanhas.db`. Os arquivos que você sobe ficam em `saidas/uploads/`.
+Tudo o que você digita, o poster e a lista de funcionários ficam no **banco** — localmente
+um SQLite em `saidas/campanhas.db`, em produção o Postgres. Pode fechar e abrir sem perder
+nada, e no servidor um redeploy não apaga a campanha.
 
 ---
 
 ## 2. A planilha de funcionários
 
-**A planilha Google é o banco de dados do sistema.** Não existe importar arquivo: o sistema
-lê direto da sua planilha de controle, e o que você corrige aqui é **gravado de volta nela**.
+Aceita `.csv` e `.xlsx`. Sua planilha de controle serve direto, sem editar.
 
-Configurada em `SHEET_ID`, com o cabeçalho na linha `SHEET_HEADER_ROW` (5, no seu caso).
-O botão **Sincronizar com a planilha** traz o estado atual — rode sempre que atualizar a planilha.
+O sistema **acha o cabeçalho sozinho** — não precisa estar na primeira linha. Se quiser
+forçar, preencha o campo "linha do cabeçalho" ao importar.
 
-O que a sincronização faz:
+O que a importação faz:
 
-- linha nova na planilha → entra na base
-- linha alterada → atualiza (se o telefone mudou, a validação de WhatsApp é refeita)
-- linha que sumiu → marcada como inativa, sai dos disparos, mas o histórico é preservado
+- pessoa nova → entra na base
+- pessoa que já existia → atualiza (se o telefone mudou, a validação de WhatsApp é refeita)
+- pessoa que saiu do arquivo → fica inativa, sai dos disparos, mas o histórico é preservado
+
+Marcando **"Substituir a base atual"**, tudo é apagado antes — inclusive o histórico de envios.
 
 A **ordem das colunas não importa** — o sistema lê pelo cabeçalho.
 
+### Reimportar é seguro
+
+A identidade de cada pessoa é **empresa + email/telefone**, não a posição no arquivo.
+Corrigir a planilha, reordenar linhas ou inserir gente no meio não embaralha quem já recebeu.
+
 | Coluna    | Obrigatória | O que faz                                                                                 |
 |-----------|-------------|-------------------------------------------------------------------------------------------|
-| `email`   | **sim**     | Para onde o email vai. Linha sem email válido é descartada e contada como "inválido".      |
-| `empresa` | **sim**     | Vira o `{empresa}` do email: aparece no cabeçalho azul, na saudação, no assunto, no rodapé e define o remetente. |
-| `logo`    | não         | Link público do PNG da logo daquela empresa. Aparece no cabeçalho, num quadro branco.       |
-| `nome`    | não         | Nome do funcionário. Alimenta `{nome}` e `{primeiro_nome}` na saudação.                     |
+| `empresa`  | **sim**     | Vira o `{empresa}`: cabeçalho, saudação, assunto, rodapé, remetente e a imagem do WhatsApp. |
+| `email`    | um dos dois | Para onde o email vai.                                                                      |
+| `telefone` | um dos dois | Para onde o WhatsApp vai. Normalizado sozinho.                                               |
+| `logo`     | não         | Link público do PNG da logo daquela empresa.                                                 |
+| `nome`     | não         | Alimenta `{nome}` e `{primeiro_nome}` na saudação.                                           |
+
+Linha sem **email nem telefone** é descartada e reportada na tela com o motivo.
 
 ### Nomes de cabeçalho aceitos
 
@@ -51,25 +60,37 @@ Não precisa escrever exatamente `email`/`empresa`/`logo`. Acento e maiúscula s
 - **empresa** — `empresa`, `nome da empresa`, `razão social`, `cliente`, `organização`, `unidade`, `company`
 - **logo** — `logo`, `link da logo`, `link da logo da empresa`, `url da logo`, `logo da empresa`, `imagem`, `link`
 - **nome** — `nome`, `nome do funcionário`, `funcionário`, `colaborador`, `nome completo`
+- **telefone** — `telefone`, `celular`, `whatsapp`, `fone`, `contato`, `número`
+
+CSV com `;` ou `,` funciona igual — o separador é detectado sozinho, e acento no cabeçalho
+não atrapalha.
+
+### Escolher quais empresas recebem
+
+Depois de importar, o **passo 4** lista as empresas com caixa de seleção. Só as marcadas
+recebem — desmarcada fica na base, mas fora do disparo.
+
+A seleção do **email é independente da do WhatsApp**: dá para mandar email para todas e
+WhatsApp só para algumas. O contador ao lado dos botões mostra quantos destinatários a
+seleção atual alcança, e o KPI "vão receber" reflete isso.
+
+Marcar todas equivale a não filtrar nada.
 
 ### Corrigir um dado pelo sistema
 
-Na tabela de destinatários (passo 6 no email, passo 5 no WhatsApp), os campos em **azul**
-são editáveis: clique, digite, Enter. `Esc` cancela.
+Na tabela de destinatários, os campos em **azul** são editáveis: clique, digite, Enter.
+`Esc` cancela. Editáveis: `empresa`, `logo`, `nome`, `email`, `telefone`.
 
-A correção vai **para a célula da planilha**, na linha certa — a coluna "Linha" da tabela
-mostra qual. Não é um ajuste local: a planilha continua sendo a fonte única, então a
-próxima sincronização não desfaz o que você corrigiu.
-
-Editáveis: `empresa`, `logo`, `nome`, `email`, `telefone`. RG, CPF e datas não são tocados.
+A correção vale **na base**, até a próxima importação daquela pessoa. Serve para consertar
+um telefone na hora do disparo; para ficar definitivo, corrija também na sua planilha.
 
 Telefone é validado antes de gravar e salvo já normalizado. Trocar o telefone de alguém
 zera a validação de WhatsApp daquela pessoa — rode **Validar números** de novo.
 
 ### Uma pessoa em várias empresas
 
-Cada linha da planilha é um registro independente. A mesma pessoa em duas empresas recebe
-dois comunicados, um com cada marca. Se não for o que você quer, remova uma das linhas.
+Cada combinação de empresa + contato é um registro próprio. A mesma pessoa em duas
+empresas recebe dois comunicados, um com cada marca.
 
 ---
 
@@ -276,8 +297,8 @@ Confirme que chegou bem e só então mande para todos.
 **Resetar status** apaga o histórico **desta campanha** (a tag atual) e volta todo mundo
 para "pendente". Não mexe na planilha nem em outras campanhas.
 
-Não existe "limpar base": quem está na base é quem está na planilha. Para tirar alguém,
-tire da planilha e sincronize.
+Para tirar alguém da base: tire da planilha e reimporte (ele fica inativo), ou desmarque
+a empresa inteira no passo 4.
 
 ---
 

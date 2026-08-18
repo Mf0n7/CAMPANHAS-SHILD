@@ -9,56 +9,92 @@ responder na hora sem esperar a proxima sincronizacao.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from sqlalchemy import and_, delete, func, insert, or_, select, update
 
-from . import fones, sheets
+from . import db, fones, recipients
 from .config import settings
 from .db import agora, conta_se, engine, envios, pessoas
 
 CANAIS = ("email", "whatsapp")
+CAMPOS_EDITAVEIS = ("empresa", "logo_url", "nome", "email", "telefone")
 
 
 # --------------------------------------------------------------------------- #
-# sincronizacao com a planilha
+# importacao do arquivo
 # --------------------------------------------------------------------------- #
-def sincronizar(nome_aba: str = "") -> dict:
-    lido = sheets.ler(nome_aba)
-    aba = lido["aba"]
-    vistos: set[int] = set()
+def importar_arquivo(caminho: Path, substituir: bool = False, linha_cabecalho: int = 0,
+                     ddd_padrao: str = "") -> dict:
+    """Le o .csv/.xlsx e atualiza a base.
+
+    A identidade e a `chave` (empresa + email/telefone), nao a posicao no arquivo:
+    reimportar uma planilha corrigida ou reordenada nao embaralha quem ja recebeu.
+    """
+    lido = recipients.ler(caminho, linha_cabecalho=linha_cabecalho,
+                          ddd_padrao=ddd_padrao or settings.wa_ddd_padrao)
+    vistos: set[str] = set()
     novos = atualizados = 0
 
     with engine().begin() as c:
-        atuais = {r.linha: r for r in c.execute(
-            select(pessoas).where(pessoas.c.aba == aba)).fetchall()}
+        if substituir:
+            c.execute(delete(envios))
+            c.execute(delete(pessoas))
+        atuais = {r.chave: r for r in c.execute(select(pessoas)).fetchall()}
 
         for it in lido["itens"]:
-            telefone, erro_fone = fones.normalizar(it["telefone"], settings.wa_ddd_padrao)
             valores = {
-                "empresa": it["empresa"], "logo_url": it["logo_url"], "nome": it["nome"],
-                "email": it["email"], "telefone": telefone, "telefone_erro": erro_fone,
+                "origem": caminho.name, "linha": it["linha"], "empresa": it["empresa"],
+                "logo_url": it["logo_url"], "nome": it["nome"], "email": it["email"],
+                "telefone": it["telefone"], "telefone_erro": it["telefone_erro"],
                 "ativo": True, "sincronizado_em": agora(),
             }
-            vistos.add(it["linha"])
-            antigo = atuais.get(it["linha"])
+            vistos.add(it["chave"])
+            antigo = atuais.get(it["chave"])
             if antigo is None:
-                c.execute(insert(pessoas).values(aba=aba, linha=it["linha"], **valores))
+                c.execute(insert(pessoas).values(chave=it["chave"], **valores))
                 novos += 1
                 continue
-            if antigo.telefone != telefone:
+            if antigo.telefone != it["telefone"]:
                 valores.update(jid="", tem_whatsapp=-1)   # numero mudou: revalidar
             mudou = any(getattr(antigo, k) != v for k, v in valores.items()
-                        if k != "sincronizado_em")
+                        if k not in ("sincronizado_em", "origem", "linha"))
             c.execute(update(pessoas).where(pessoas.c.id == antigo.id).values(**valores))
             atualizados += int(mudou)
 
-        sumiram = [r.id for linha, r in atuais.items() if linha not in vistos and r.ativo]
+        sumiram = [r.id for k, r in atuais.items() if k not in vistos and r.ativo]
         if sumiram:
             c.execute(update(pessoas).where(pessoas.c.id.in_(sumiram)).values(ativo=False))
 
-    return {"aba": aba, "linha_cabecalho": lido["linha_cabecalho"],
-            "colunas_reconhecidas": list(lido["colunas"]),
-            "lidos": len(lido["itens"]), "novos": novos, "atualizados": atualizados,
-            "removidos_da_planilha": len(sumiram), "total_ativos": _conta_ativos()}
+    return {"arquivo": caminho.name, "linha_cabecalho": lido["linha_cabecalho"],
+            "colunas_reconhecidas": lido["colunas"], "lidos": len(lido["itens"]),
+            "novos": novos, "atualizados": atualizados, "invalidos": lido["invalidos"],
+            "duplicados": lido["duplicados"], "problemas": lido["problemas"],
+            "fora_do_arquivo": len(sumiram), "total_ativos": _conta_ativos()}
+
+
+# --------------------------------------------------------------------------- #
+# selecao de empresas (quem entra no disparo)
+# --------------------------------------------------------------------------- #
+def _chave_selecao(canal: str) -> str:
+    return f"empresas_{canal}"
+
+
+def selecao(canal: str) -> list[str]:
+    """Empresas escolhidas para aquele canal. Lista vazia = todas."""
+    return db.ler_config(_chave_selecao(canal), []) or []
+
+
+def definir_selecao(canal: str, empresas_sel: list[str]) -> list[str]:
+    existentes = {e["empresa"] for e in empresas(canal, "")}
+    limpa = [e for e in dict.fromkeys(empresas_sel or []) if e in existentes]
+    db.gravar_config(_chave_selecao(canal), limpa)
+    return limpa
+
+
+def _filtro_selecao(canal: str):
+    sel = selecao(canal)
+    return pessoas.c.empresa.in_(sel) if sel else None
 
 
 def _conta_ativos() -> int:
@@ -75,10 +111,15 @@ def precisa_sincronizar() -> bool:
 # edicao (grava na planilha e no espelho)
 # --------------------------------------------------------------------------- #
 def editar(pessoa_id: int, mudancas: dict) -> dict:
+    """Corrige um dado aqui no sistema.
+
+    Vale ate a proxima importacao daquela pessoa: o arquivo continua sendo a fonte.
+    Para a correcao ser definitiva, ajuste tambem a planilha antes de reimportar.
+    """
     limpas = {k: str(v).strip() for k, v in (mudancas or {}).items()
-              if k in sheets.CAMPOS_EDITAVEIS}
+              if k in CAMPOS_EDITAVEIS}
     if not limpas:
-        raise ValueError(f"Nada para editar. Campos aceitos: {', '.join(sheets.CAMPOS_EDITAVEIS)}")
+        raise ValueError(f"Nada para editar. Campos aceitos: {', '.join(CAMPOS_EDITAVEIS)}")
 
     with engine().connect() as c:
         p = c.execute(select(pessoas).where(pessoas.c.id == pessoa_id)).first()
@@ -90,34 +131,28 @@ def editar(pessoa_id: int, mudancas: dict) -> dict:
         if erro:
             raise ValueError(f"Telefone invalido: {erro}")
         limpas["telefone"] = numero
-    if "email" in limpas:
+    if "email" in limpas and limpas["email"]:
         limpas["email"] = limpas["email"].lower()
-
-    sheets.gravar(p.linha, limpas, p.aba)          # planilha primeiro: ela e a fonte
+        if not recipients.EMAIL_RE.match(limpas["email"]):
+            raise ValueError(f"Email invalido: {limpas['email']}")
 
     espelho = dict(limpas, sincronizado_em=agora())
     if "telefone" in limpas and limpas["telefone"] != p.telefone:
         espelho.update(jid="", tem_whatsapp=-1, telefone_erro="")
     with engine().begin() as c:
         c.execute(update(pessoas).where(pessoas.c.id == pessoa_id).values(**espelho))
-    return {"id": pessoa_id, "linha": p.linha, "aba": p.aba, "gravado": limpas}
+    return {"id": pessoa_id, "linha": p.linha, "gravado": limpas}
 
 
 # --------------------------------------------------------------------------- #
 # consultas
 # --------------------------------------------------------------------------- #
-def _junta(canal: str, tag: str):
-    return envios.outerjoin(
-        pessoas, and_(envios.c.pessoa_id == pessoas.c.id,
-                      envios.c.canal == canal, envios.c.tag == tag))
-
-
 def _colunas(canal: str, tag: str):
     """SELECT de pessoas + o envio daquele canal/campanha (pode nao existir ainda)."""
     e = envios.alias("e")
     origem = pessoas.outerjoin(e, and_(e.c.pessoa_id == pessoas.c.id,
                                        e.c.canal == canal, e.c.tag == tag))
-    cols = [pessoas.c.id, pessoas.c.linha, pessoas.c.aba, pessoas.c.empresa, pessoas.c.logo_url,
+    cols = [pessoas.c.id, pessoas.c.linha, pessoas.c.origem, pessoas.c.empresa, pessoas.c.logo_url,
             pessoas.c.nome, pessoas.c.email, pessoas.c.telefone, pessoas.c.telefone_erro,
             pessoas.c.jid, pessoas.c.tem_whatsapp,
             func.coalesce(e.c.status, "pendente").label("status"),
@@ -163,9 +198,13 @@ def listar(canal: str, tag: str, status: str = "", busca: str = "",
 
 def alvos(canal: str, tag: str, modo: str = "pendentes", empresa: str = "",
           pular_sem_whatsapp: bool = True, limite: int = 0) -> list[dict]:
+    """Quem vai receber agora. Respeita a selecao de empresas do canal."""
     origem, cols, e = _colunas(canal, tag)
     q = select(*cols).select_from(origem).where(
         pessoas.c.ativo.is_(True), _filtro_canal(canal))
+    sel = _filtro_selecao(canal)
+    if sel is not None:
+        q = q.where(sel)
     if modo == "reenviar_erros":
         q = q.where(or_(e.c.status.is_(None), e.c.status.in_(("pendente", "erro"))))
     elif modo != "todos":
@@ -199,9 +238,17 @@ def resumo(canal: str, tag: str) -> dict:
     ).select_from(origem).where(pessoas.c.ativo.is_(True), _filtro_canal(canal))
     with engine().connect() as c:
         d = {k: (v or 0) for k, v in c.execute(q).first()._mapping.items()}
+        # quantos entram no disparo depois da selecao de empresas
+        qs = select(func.count()).select_from(pessoas).where(
+            pessoas.c.ativo.is_(True), _filtro_canal(canal))
+        sel = _filtro_selecao(canal)
+        if sel is not None:
+            qs = qs.where(sel)
+        d["selecionados"] = c.execute(qs).scalar_one()
     d["taxa_abertura"] = round(100 * d["abertos"] / d["enviados"], 1) if d["enviados"] else 0.0
     d["taxa_clique"] = round(100 * d["clicados"] / d["enviados"], 1) if d["enviados"] else 0.0
     d["sem_canal"] = _sem_canal(canal)
+    d["empresas_selecionadas"] = len(selecao(canal))
     return d
 
 
@@ -222,9 +269,13 @@ def empresas(canal: str, tag: str) -> list[dict]:
                 func.max(pessoas.c.logo_url).label("logo_url"))
          .select_from(origem)
          .where(pessoas.c.ativo.is_(True), _filtro_canal(canal))
-         .group_by(pessoas.c.empresa).order_by(func.count().desc()))
+         .group_by(pessoas.c.empresa).order_by(pessoas.c.empresa))
     with engine().connect() as c:
-        return [dict(r._mapping) for r in c.execute(q).fetchall()]
+        linhas = [dict(r._mapping) for r in c.execute(q).fetchall()]
+    sel = set(selecao(canal))
+    for linha in linhas:                    # selecao vazia = todas marcadas
+        linha["selecionada"] = (linha["empresa"] in sel) if sel else True
+    return linhas
 
 
 # --------------------------------------------------------------------------- #

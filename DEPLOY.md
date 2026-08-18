@@ -17,53 +17,7 @@ No Coolify: **+ New → Database → PostgreSQL**. Depois de criar, copie a **In
 
 Não precisa criar tabela nenhuma — o sistema cria na primeira subida.
 
-## 2. Conta de serviço do Google
-
-A planilha é privada, então o servidor precisa de uma identidade própria. Isso é feito
-uma vez:
-
-1. <https://console.cloud.google.com> → crie um projeto (ou use um existente)
-2. **APIs e serviços → Biblioteca** → ative **Google Sheets API**
-3. **IAM e administrador → Contas de serviço → Criar conta de serviço**
-   - nome: `campanhas-shild` (o que quiser)
-   - não precisa dar papel nenhum no projeto
-4. Na conta criada → aba **Chaves → Adicionar chave → Criar nova → JSON**. Baixa um arquivo.
-5. Abra o JSON e copie o valor de `client_email`
-   (algo como `campanhas-shild@seu-projeto.iam.gserviceaccount.com`)
-6. **Na planilha**: Compartilhar → cole esse email → permissão **Editor** → Enviar
-
-> **Editor**, não Leitor: é o que permite salvar as correções que você faz pela tela.
-
-### Como passar a credencial
-
-Três formas, escolha uma:
-
-| Forma | Variáveis | Quando usar |
-|---|---|---|
-| **A** | `GOOGLE_SA_EMAIL` + `GOOGLE_SA_PRIVATE_KEY` | **Coolify** — só dois campos, tirados do JSON |
-| **B** | `GOOGLE_CREDENTIALS_JSON` | o JSON inteiro numa linha |
-| **C** | `GOOGLE_CREDENTIALS_FILE` | no seu PC, aponta o caminho do arquivo |
-
-Na forma A, abra o JSON baixado e copie dois campos:
-
-```json
-{
-  "client_email": "campanhas-shild@seu-projeto.iam.gserviceaccount.com",  ← GOOGLE_SA_EMAIL
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEv...\n-----END PRIVATE KEY-----\n"  ← GOOGLE_SA_PRIVATE_KEY
-}
-```
-
-A chave pode ser colada com `\n` literal, entre aspas ou numa linha só sem separador
-nenhum — o sistema reconstrói o PEM.
-
-> **`client_id` + `client_secret` não servem.** Numa conta de serviço quem assina é a
-> chave privada; não existe versão com segredo curto. `client_id`/`client_secret` são
-> credenciais de **OAuth**, que exigem alguém clicar em "Permitir" no navegador — e num
-> servidor não há ninguém para fazer isso. (Dava para contornar guardando um
-> `refresh_token`, mas ele expira em 7 dias enquanto o app estiver em modo *Testing*,
-> e a campanha pararia sozinha no meio da semana.)
-
-## 3. Aplicação
+## 2. Aplicação
 
 ### Quantos domínios: **um só**
 
@@ -88,21 +42,19 @@ No Coolify: **+ New → Application → Public/Private Repository**.
 - **Health check path**: `/saude`
 - **Domains**: um domínio, ex. `campanhas.shild.click`
 
-Cole as variáveis de ambiente (seção 4). Deploy.
+Cole as variáveis de ambiente (seção 3). Deploy.
 
 > Se preferir o `docker-compose.yaml` (**+ New → Docker Compose**), o Coolify mostra o
 > serviço `campanhas` e um único campo de domínio para ele. O arquivo já traz
 > `SERVICE_FQDN_CAMPANHAS_8010`, que é como o Coolify liga o domínio à porta 8010.
 
-## 4. Variáveis de ambiente
+## 3. Variáveis de ambiente
 
 Obrigatórias:
 
 | Variável | O que é |
 |---|---|
 | `DATABASE_URL` | Internal URL do Postgres criado no passo 1 |
-| `SHEET_ID` | URL (ou ID) da planilha de funcionários |
-| `GOOGLE_CREDENTIALS_JSON` | JSON inteiro da conta de serviço, numa linha |
 
 Email (Brevo):
 
@@ -128,13 +80,13 @@ WhatsApp (Evolution API):
 | `EVOLUTION_INSTANCE` | nome da instância |
 | `WA_DELAY_SECONDS` | `8` — não abaixe muito |
 
-Opcionais com padrão razoável: `SHEET_TAB` (vazio = primeira aba), `SHEET_HEADER_ROW` (`5`),
-`TRANSPORTE` (`auto`), `MAIL_FROM_PER_EMPRESA` (`0`), `SEND_DELAY_SECONDS` (`1.5`),
-`WA_DDD_PADRAO`, `EMAIL_LOGO_URL`, `SHILD_SITE_URL`, `INSTAGRAM_URL`.
+Opcionais com padrão razoável: `TRANSPORTE` (`auto`), `MAIL_FROM_PER_EMPRESA` (`0`),
+`SEND_DELAY_SECONDS` (`1.5`), `WA_DDD_PADRAO`, `EMAIL_LOGO_URL`, `SHILD_SITE_URL`,
+`INSTAGRAM_URL`.
 
 A lista completa e comentada está em [.env.example](.env.example).
 
-## 5. Conferir se subiu certo
+## 4. Conferir se subiu certo
 
 Abra `https://seu-dominio/saude`. Ele responde **200 mesmo com o banco fora** — é liveness,
 não readiness — e o corpo diz o que está funcionando:
@@ -144,17 +96,17 @@ não readiness — e o corpo diz o que está funcionando:
 ```
 
 Se `banco_ok` for `false`, o campo `banco_erro` diz o motivo e `banco_alvo` mostra qual host
-foi tentado (sem a senha). Veja a seção 6.
+foi tentado (sem a senha). Veja a seção 5.
 
 Depois:
 
-1. Abra a tela. No passo 3 deve aparecer em verde o nome da planilha, a aba e as colunas lidas
-2. Clique **Sincronizar com a planilha** — deve trazer a contagem de funcionários
+1. Abra a tela e importe a planilha de funcionários (passo 3)
+2. Marque as empresas do disparo (passo 4)
 3. Envie um teste por email e um por WhatsApp
 
 ---
 
-## 6. Quando dá errado
+## 5. Quando dá errado
 
 ### O container sobe e cai no mesmo instante
 
@@ -162,8 +114,8 @@ Depois:
 é variável de ambiente colada na anterior:
 
 ```
-SHEET_HEADER_ROW=5BREVO_API_KEY=xkeysib-...
-                 ^^^^^^^^^^^^^^^^^^^^^^^^ virou parte do valor
+SEND_DELAY_SECONDS=1.5BREVO_API_KEY=xkeysib-...
+                      ^^^^^^^^^^^^^^^^^^^^^^^^ virou parte do valor
 ```
 
 Ao colar um bloco de variáveis no Coolify, confira se **cada uma ficou na sua própria
@@ -193,46 +145,6 @@ Confira depois em `/saude`: `banco_ok` deve virar `true`.
 
 Alternativa pior: expor o Postgres publicamente e usar a URL externa. Evite.
 
-### "A credencial precisa ser de uma CONTA DE SERVIÇO"
-
-O `GOOGLE_CREDENTIALS_JSON` recebeu um JSON de **OAuth client** — o que tem
-`"web": {"client_id": ..., "client_secret": "GOCSPX-..."}`. Esse tipo não serve: exige
-alguém clicar em "Permitir" no navegador, e no servidor não há ninguém.
-
-Baixe a chave de uma **conta de serviço** (seção 2) — o JSON dela tem
-`"type": "service_account"` e um `"private_key"`. Ou use `GOOGLE_SA_EMAIL` +
-`GOOGLE_SA_PRIVATE_KEY`.
-
-### "GOOGLE_SA_PRIVATE_KEY recebeu o campo errado do JSON"
-
-Confusão fácil: o JSON tem **dois** campos parecidos.
-
-| Campo no JSON | Formato | Serve? |
-|---|---|---|
-| `private_key_id` | `f89b2228e93bb672...` (hash curto) | não |
-| `private_key` | `-----BEGIN PRIVATE KEY-----\nMIIEvg...` (longo) | **sim** |
-
-Copie o `private_key` inteiro, incluindo o `-----BEGIN`/`-----END`.
-
-### "GOOGLE_CREDENTIALS_JSON não é um JSON válido"
-
-O painel do Coolify quebra valores com várias linhas — colar o JSON formatado deixa só
-o `{`. Ou cole tudo numa linha só, ou (mais simples) **apague essa variável** e use
-`GOOGLE_SA_EMAIL` + `GOOGLE_SA_PRIVATE_KEY`.
-
-Se o par estiver correto, o sistema o usa mesmo com o JSON quebrado — mas deixar lixo
-na variável só atrapalha o diagnóstico depois.
-
-### "Sem acesso à planilha (HTTP 403/404)"
-
-A planilha ainda não foi compartilhada com o `client_email` da conta de serviço.
-A própria mensagem na tela mostra qual email usar. Permissão: **Editor**.
-
-### A aba não é encontrada
-
-`SHEET_TAB` precisa bater exatamente com o nome da aba. A mensagem de erro lista as abas
-existentes na planilha.
-
 ---
 
 ## Rodar na sua máquina
@@ -245,12 +157,8 @@ cd "C:\Users\Matheus Fontenele\Documents\projetos\SHILD\shild-system\RSPV capaig
 .\venv\Scripts\python.exe run.py
 ```
 
-Para o acesso à planilha localmente, baixe o JSON da conta de serviço e aponte
-`GOOGLE_CREDENTIALS_FILE=C:\caminho\para\chave.json` no `.env` (mais prático que colar
-o JSON inteiro).
-
 ## Segurança
 
-O sistema **não tem login**. Quem abrir a URL dispara campanha e edita a planilha.
+O sistema **não tem login**. Quem abrir a URL dispara campanha e vê os dados dos funcionários.
 Não exponha num domínio público sem proteção — no Coolify, ative autenticação básica
 no proxy, ou deixe acessível só por rede interna/VPN.

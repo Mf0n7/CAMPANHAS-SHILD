@@ -146,16 +146,35 @@ Linha em branco cria um paragrafo novo.
   <!-- 3. BASE -->
   <section class="card">
     <h2><span class="n">3</span> Base de funcionarios</h2>
-    <p class="dica">Vem da sua planilha Google. Ela e a fonte da verdade &mdash; sincronize
-       sempre que atualizar a planilha.</p>
-    <div id="sheetBox"></div>
-    <div class="acoes" style="margin-top:12px">
-      <button class="b-navy" onclick="sincronizarSheet()">Sincronizar com a planilha</button>
-      <button class="b-linha" onclick="carregarResumo()">Atualizar numeros</button>
-      <button class="b-linha" onclick="acao('/api/resetar','Marcar todos como pendentes de novo? (apaga o historico desta campanha)')">Resetar status</button>
+    <p class="dica">Sua planilha de controle serve direto: <code>EMPRESA</code>,
+       <code>LOGO DA EMPRESA</code>, <code>NOME COMPLETO</code>, <code>EMAIL</code>,
+       <code>TELEFONE</code>. RG, CPF e datas sao ignorados.</p>
+    <div class="fileup">
+      <input type="file" id="listaFile" accept=".csv,.xlsx,.xlsm,.txt">
+      <button class="b-navy" onclick="subirLista()">Importar planilha</button>
+      <span class="chk" style="display:inline-flex;margin:0 0 0 10px">
+        <input type="checkbox" id="substituir"> Substituir a base atual</span>
+      <input type="text" id="linha_cabecalho" placeholder="linha do cabecalho (auto)"
+             style="max-width:210px;display:inline-block;width:auto;margin-left:10px">
     </div>
     <div id="listaMsg"></div>
     <div class="kpis" id="kpis"></div>
+    <div class="acoes">
+      <button class="b-linha" onclick="carregarResumo()">Atualizar numeros</button>
+      <button class="b-linha" onclick="acao('/api/resetar','Marcar todos como pendentes de novo? (apaga o historico desta campanha)')">Resetar status</button>
+    </div>
+  </section>
+
+  <!-- 3b. EMPRESAS -->
+  <section class="card">
+    <h2><span class="n">4</span> Quais empresas recebem</h2>
+    <p class="dica">Marque as empresas deste disparo. Desmarcada nao recebe, mesmo com
+       funcionarios na base.</p>
+    <div class="acoes" style="margin-top:0">
+      <button class="b-linha" onclick="marcarTodas(true)">Marcar todas</button>
+      <button class="b-linha" onclick="marcarTodas(false)">Desmarcar todas</button>
+      <span id="selMsg" class="mono"></span>
+    </div>
     <div id="empresasBox"></div>
   </section>
 
@@ -200,8 +219,6 @@ Linha em branco cria um paragrafo novo.
           <option value="reenviar_erros">Pendentes + que deram erro</option>
           <option value="todos">Todos da base (reenvia)</option>
         </select></div>
-      <div><label for="empresaFiltro">Limitar a uma empresa</label>
-        <select id="empresaFiltro"><option value="">Todas</option></select></div>
       <div><label for="max_envios">Limite de envios (0 = sem limite)</label>
         <input type="number" id="max_envios" value="0" min="0"></div>
     </div>
@@ -308,7 +325,6 @@ async function carregarConfig(){
   }
   mostrarRemetente(d.remetente_exemplo, d.brevo_configurado || d.smtp_configurado);
   mostrarPlano(d.plano);
-  carregarSheet();
   pintarResumo(d.resumo, d.empresas);
   atualizarPrevia();
   carregarTabela();
@@ -369,35 +385,67 @@ function atualizarPrevia(){
   $("previa").src = "/api/preview?" + p.toString() + "&v=" + Date.now();
 }
 
-// ---------- planilha Google ----------
-async function carregarSheet(){
-  const d = await get("/api/sheet/estado");
-  if(!d.configurada){
-    $("sheetBox").innerHTML = `<div class="aviso erro">${d.erro}</div>`;
-    return;
-  }
-  if(d.ok === false){
-    $("sheetBox").innerHTML = `<div class="aviso erro">${d.erro}<br>` +
-      `Compartilhe a planilha com <span class="mono">${d.conta_de_servico||"a conta de servico"}</span> como Editor.</div>`;
-    return;
-  }
-  const falta = (d.colunas_faltando||[]).length
-    ? `<br><b style="color:#a3312a">Colunas nao reconhecidas: ${d.colunas_faltando.join(", ")}</b>` : "";
-  $("sheetBox").innerHTML =
-    `<div class="aviso ok">Planilha <b>${d.planilha}</b> · aba <b>${d.aba}</b> ·
-      cabecalho na linha <b>${d.linha_cabecalho}</b><br>
-      Colunas lidas: <span class="mono">${Object.values(d.colunas_reconhecidas||{}).join(" | ")}</span>${falta}</div>`;
+// ---------- importacao da planilha ----------
+async function subirLista(){
+  const f = $("listaFile").files[0];
+  if(!f){ alert("Escolha o arquivo .csv ou .xlsx."); return; }
+  msg("listaMsg", "Lendo a planilha...", "");
+  const fd = new FormData();
+  fd.append("arquivo", f);
+  fd.append("substituir", $("substituir").checked ? "1" : "0");
+  fd.append("linha_cabecalho", $("linha_cabecalho").value || "0");
+  const d = await (await fetch("/api/lista", {method:"POST", body: fd})).json();
+  if(d.erro){ msg("listaMsg", esc(d.erro), "erro"); return; }
+  let txt = `<b>${esc(d.arquivo)}</b> · cabecalho na linha <b>${d.linha_cabecalho}</b> · ` +
+    `${d.lidos} lidos · <b>${d.novos}</b> novos · ${d.atualizados} atualizados · ` +
+    `${d.duplicados} duplicados · ${d.invalidos} sem email nem telefone` +
+    (d.fora_do_arquivo ? ` · ${d.fora_do_arquivo} sairam da base` : "") +
+    `<br>Colunas lidas: <span class="mono">${Object.values(d.colunas_reconhecidas||{}).map(esc).join(" | ")}</span>`;
+  if((d.problemas||[]).length) txt += "<br><br>Linhas com problema:<br>" + d.problemas.map(esc).join("<br>");
+  msg("listaMsg", txt, (d.invalidos || (d.problemas||[]).length) ? "" : "ok");
+  carregarResumo();
 }
 
-async function sincronizarSheet(){
-  msg("listaMsg", "Lendo a planilha...", "");
-  const d = await post("/api/sheet/sincronizar");
-  if(d.erro){ msg("listaMsg", d.erro, "erro"); return; }
-  msg("listaMsg", `Aba <b>${d.aba}</b>: ${d.lidos} linhas lidas · <b>${d.novos}</b> novos · ` +
-      `${d.atualizados} atualizados · ${d.removidos_da_planilha} sumiram da planilha · ` +
-      `<b>${d.total_ativos}</b> ativos.`, "ok");
-  carregarSheet();
-  carregarResumo();
+// ---------- selecao de empresas ----------
+let EMPRESAS = [];
+
+function pintarEmpresas(lista){
+  EMPRESAS = lista || [];
+  if(!EMPRESAS.length){
+    $("empresasBox").innerHTML = `<p style="color:#808080;margin-top:14px">
+      Nenhuma empresa na base. Importe a planilha no passo 3.</p>`;
+    return;
+  }
+  $("empresasBox").innerHTML =
+    `<table><tr><th style="width:34px"></th><th>Empresa</th><th>Funcionarios</th>
+      <th>Enviados</th><th>Abriram</th><th>Logo</th></tr>` +
+    EMPRESAS.map(e => `<tr>
+      <td><input type="checkbox" class="selEmp" value="${esc(e.empresa)}"
+                 ${e.selecionada ? "checked" : ""} onchange="salvarSelecao()"
+                 style="width:16px;height:16px;accent-color:var(--ouro)"></td>
+      <td><b>${esc(e.empresa)}</b></td><td>${e.total}</td><td>${e.enviados||0}</td>
+      <td>${e.abertos||0}</td>
+      <td>${e.logo_url ? "ok" : "<span style='color:#a3312a'>faltando</span>"}</td></tr>`).join("") +
+    `</table>`;
+}
+
+function marcarTodas(valor){
+  document.querySelectorAll(".selEmp").forEach(c => { c.checked = valor; });
+  salvarSelecao();
+}
+
+async function salvarSelecao(){
+  const marcadas = [...document.querySelectorAll(".selEmp:checked")].map(c => c.value);
+  const todas = document.querySelectorAll(".selEmp").length;
+  // marcar tudo = lista vazia no banco, que significa "todas"
+  const corpo = {canal: "email", empresas: marcadas.length === todas ? [] : marcadas};
+  const d = await post("/api/empresas/selecao", corpo);
+  if(d.erro){ $("selMsg").textContent = d.erro; return; }
+  const r = d.resumo || {};
+  $("selMsg").textContent = marcadas.length === todas
+    ? `todas as ${todas} empresas · ${r.selecionados} destinatarios`
+    : `${marcadas.length} de ${todas} empresas · ${r.selecionados} destinatarios`;
+  pintarResumo(r, null);
 }
 
 // ---------- uploads ----------
@@ -427,24 +475,11 @@ async function carregarResumo(){
 function pintarResumo(r, empresas){
   if(!r) return;
   const k = (v,l) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
-  $("kpis").innerHTML = k(r.total,"com email") + k(r.enviados,"enviados") + k(r.pendentes,"pendentes")
-    + k(r.erros,"erros") + k(r.abertos,"abriram") + k(r.taxa_abertura+"%","taxa abertura")
-    + k(r.clicados,"clicaram") + k(r.sem_canal,"sem email");
-
-  const sel = $("empresaFiltro"), atual = sel.value;
-  sel.innerHTML = '<option value="">Todas</option>';
-  (empresas||[]).forEach(e => {
-    const o = document.createElement("option");
-    o.value = e.empresa; o.textContent = `${e.empresa} (${e.total})`;
-    sel.appendChild(o);
-  });
-  sel.value = atual;
-
-  $("empresasBox").innerHTML = !(empresas||[]).length ? "" :
-    `<table><tr><th>Empresa</th><th>Funcionarios</th><th>Enviados</th><th>Abriram</th><th>Logo</th></tr>` +
-    empresas.map(e => `<tr><td><b>${e.empresa}</b></td><td>${e.total}</td><td>${e.enviados||0}</td>`+
-      `<td>${e.abertos||0}</td><td>${e.logo_url ? "ok" : "<span style='color:#a3312a'>faltando</span>"}</td></tr>`
-    ).join("") + `</table>`;
+  $("kpis").innerHTML = k(r.total,"com email") + k(r.selecionados,"vao receber")
+    + k(r.enviados,"enviados") + k(r.pendentes,"pendentes") + k(r.erros,"erros")
+    + k(r.abertos,"abriram") + k(r.taxa_abertura+"%","taxa abertura")
+    + k(r.sem_canal,"sem email");
+  if(empresas) pintarEmpresas(empresas);
 }
 
 async function acao(url, pergunta){
@@ -462,9 +497,14 @@ async function enviarTeste(){
 }
 async function enviarCampanha(){
   await salvar(false);
-  const alvo = $("empresaFiltro").value ? `da empresa "${$("empresaFiltro").value}"` : "de TODAS as empresas";
-  if(!confirm(`Disparar a campanha para os funcionarios ${alvo}?\n\nModo: ${$("modo").selectedOptions[0].text}`)) return;
-  const d = await post("/api/enviar", {modo:$("modo").value, empresa:$("empresaFiltro").value,
+  const marcadas = [...document.querySelectorAll(".selEmp:checked")].map(c => c.value);
+  const total = document.querySelectorAll(".selEmp").length;
+  if(!total){ alert("Base vazia. Importe a planilha no passo 3."); return; }
+  if(!marcadas.length){ alert("Nenhuma empresa marcada no passo 4."); return; }
+  const alvo = marcadas.length === total ? `TODAS as ${total} empresas`
+                                         : `${marcadas.length} de ${total}:\n· ${marcadas.join("\n· ")}`;
+  if(!confirm(`Disparar a campanha para ${alvo}\n\nModo: ${$("modo").selectedOptions[0].text}`)) return;
+  const d = await post("/api/enviar", {modo:$("modo").value,
                                        max_envios:Number($("max_envios").value||0)});
   if(d.erro){ msg("envioMsg", d.erro, "erro"); return; }
   acompanhar();

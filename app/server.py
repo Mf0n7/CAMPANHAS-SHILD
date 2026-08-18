@@ -4,12 +4,12 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
-from . import (arquivos, campaign, compositor, dados, db, imagem, mailer, sheets,
+from . import (arquivos, campaign, compositor, dados, db, imagem, mailer,
                smtp_mailer, template, wa_campaign, whatsapp)
 from . import config as config_env
 from .config import settings
@@ -28,6 +28,7 @@ _SEND_THREAD: threading.Thread | None = None
 _WA_THREAD: threading.Thread | None = None
 
 IMG_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+LISTA_EXT = {".csv", ".xlsx", ".xlsm", ".txt"}
 
 
 @app.exception_handler(SQLAlchemyError)
@@ -47,8 +48,8 @@ def _avisos(camp: dict, plano: dict) -> list[str]:
         avisos.append("Variavel que nao existe e vai sair literal no email: "
                       + ", ".join("{" + v + "}" for v in desconhecidas)
                       + ". Validas: {empresa}, {nome}, {primeiro_nome}, {virgula_nome}.")
-    if sheets.configurado() and dados.precisa_sincronizar():
-        avisos.append("A base esta vazia. Clique em 'Sincronizar com a planilha'.")
+    if dados.precisa_sincronizar():
+        avisos.append("A base esta vazia. Importe a planilha de funcionarios no passo 3.")
     return avisos
 
 
@@ -92,45 +93,56 @@ def pronto():
 
 
 # =========================================================================== #
-# PLANILHA GOOGLE (fonte da verdade)
+# BASE DE FUNCIONARIOS (arquivo .csv/.xlsx) E SELECAO DE EMPRESAS
 # =========================================================================== #
-@app.get("/api/sheet/estado")
-def sheet_estado():
-    base = {"configurada": sheets.configurado(), "conta_de_servico": sheets.email_da_conta(),
-            "sheet_id": sheets.extrair_id(settings.sheet_id),
-            "linha_cabecalho": settings.sheet_header_row, "aba": settings.sheet_tab}
-    if not sheets.configurado():
-        base["erro"] = ("Faltam SHEET_ID e/ou a credencial da conta de servico "
-                        "(GOOGLE_CREDENTIALS_JSON).")
-        return base
+@app.post("/api/lista")
+async def upload_lista(arquivo: UploadFile = File(...), substituir: str = Form("0"),
+                       linha_cabecalho: str = Form("0"), ddd_padrao: str = Form("")):
+    nome = _seguro(arquivo.filename)
+    if Path(nome).suffix.lower() not in LISTA_EXT:
+        return JSONResponse({"erro": "Use um arquivo .csv ou .xlsx."}, status_code=400)
+    destino = arquivos.cache_dir() / nome
+    destino.write_bytes(await arquivo.read())
     try:
-        base.update(sheets.testar(), ok=True)
-    except Exception as exc:  # noqa: BLE001
-        base.update(ok=False, erro=str(exc)[:400])
-    return base
+        cab = int(str(linha_cabecalho).strip() or 0)
+    except ValueError:
+        cab = 0
+    try:
+        return dados.importar_arquivo(destino, substituir=str(substituir) in ("1", "true", "on"),
+                                      linha_cabecalho=cab, ddd_padrao=ddd_padrao)
+    except ValueError as exc:
+        return JSONResponse({"erro": str(exc)}, status_code=400)
+    finally:
+        destino.unlink(missing_ok=True)
 
 
-@app.post("/api/sheet/sincronizar")
-def sheet_sincronizar(body: dict | None = None):
-    try:
-        return dados.sincronizar((body or {}).get("aba", ""))
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"erro": str(exc)[:400]}, status_code=400)
+@app.get("/api/empresas")
+def api_empresas(canal: str = "email"):
+    tag = campaign.tag_atual()
+    return {"empresas": dados.empresas(canal, tag), "selecao": dados.selecao(canal),
+            "resumo": dados.resumo(canal, tag)}
+
+
+@app.post("/api/empresas/selecao")
+def api_selecao(body: dict):
+    canal = (body or {}).get("canal", "email")
+    escolhidas = dados.definir_selecao(canal, (body or {}).get("empresas", []))
+    return {"ok": True, "selecao": escolhidas, "resumo": dados.resumo(canal, campaign.tag_atual())}
 
 
 @app.get("/api/pessoas")
 def api_pessoas(canal: str = "email", status: str = "", busca: str = "", empresa: str = ""):
     tag = campaign.tag_atual()
     return {"itens": dados.listar(canal, tag, status=status, busca=busca, empresa=empresa),
-            "editaveis": list(sheets.CAMPOS_EDITAVEIS)}
+            "editaveis": list(dados.CAMPOS_EDITAVEIS)}
 
 
 @app.patch("/api/pessoas/{pessoa_id}")
 def api_editar_pessoa(pessoa_id: int, body: dict):
-    """Grava a correcao na celula da planilha e no espelho local."""
+    """Corrige o dado na base. Vale ate a proxima importacao daquela pessoa."""
     try:
         return {"ok": True, **dados.editar(pessoa_id, body or {})}
-    except (ValueError, sheets.SheetsError) as exc:
+    except ValueError as exc:
         return JSONResponse({"erro": str(exc)[:400]}, status_code=400)
 
 
@@ -145,8 +157,7 @@ def config():
     return {
         "brevo_configurado": mailer.configurado(),
         "smtp_configurado": smtp_mailer.configurado(),
-        "sheet": {"configurada": sheets.configurado(),
-                  "precisa_sincronizar": dados.precisa_sincronizar()},
+        "base_vazia": dados.precisa_sincronizar(),
         "plano": {**{k: plano[k] for k in ("transporte", "poster_como", "poster_no_corpo")},
                   "avisos": _avisos(camp, plano)},
         "campanha": camp,
@@ -318,8 +329,7 @@ def wa_config():
         "instancia": settings.evo_instance, "url": settings.evo_url,
         "conexao": estado, "delay": settings.wa_delay_seconds,
         "ddd_padrao": settings.wa_ddd_padrao,
-        "sheet": {"configurada": sheets.configurado(),
-                  "precisa_sincronizar": dados.precisa_sincronizar()},
+        "base_vazia": dados.precisa_sincronizar(),
         "campanha": {k: camp.get(k, "") for k in ("titulo", "mensagem", "poster_arquivo",
                                                   "whatsapp_texto", "whatsapp_assinatura")},
         "plano": wa_campaign.plano(camp),

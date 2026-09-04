@@ -333,9 +333,33 @@ def aplicar_eventos(agg: dict[str, dict], canal: str, tag: str) -> int:
             if a.get("motivo"):     # o porque da recusa vai para a coluna Obs. da tabela
                 valores["status"] = "erro"
                 valores["erro"] = a["motivo"]
+            elif a["delivered"]:
+                # entrega mais recente que o problema: limpa o erro de um disparo antigo,
+                # senao a pessoa ficaria marcada como falha depois de ja ter recebido.
+                valores["status"] = "enviado"
+                valores["erro"] = ""
             _upsert_envio(c, p[0], canal, tag, valores)
             atualizados += 1
     return atualizados
+
+
+def situacao(ids: list[int], canal: str, tag: str) -> dict:
+    """Como terminaram exatamente estas pessoas neste canal/campanha.
+
+    Serve para a conferencia pos-disparo: contar sobre a campanha inteira misturaria
+    tentativas anteriores e daria numeros maiores que o que acabou de ser enviado.
+    """
+    if not ids:
+        return {"entregues": 0, "erros": 0, "sem_resposta": 0, "total": 0}
+    with engine().connect() as c:
+        linhas = c.execute(
+            select(envios.c.status, envios.c.delivered)
+            .where(envios.c.pessoa_id.in_(ids), envios.c.canal == canal, envios.c.tag == tag)
+        ).fetchall()
+    entregues = sum(1 for r in linhas if (r.delivered or 0) > 0)
+    erros = sum(1 for r in linhas if r.status == "erro")
+    return {"entregues": entregues, "erros": erros,
+            "sem_resposta": len(ids) - entregues - erros, "total": len(ids)}
 
 
 def por_id(pessoa_id: int) -> dict | None:

@@ -213,6 +213,7 @@ def enviar_campanha(params: dict, progress: dict) -> None:
             progress.update({"status": "concluido", "etapa": "Nada a enviar (0 destinatarios)"})
             return
 
+        ids_enviados: list[int] = []
         for p in alvos:
             if progress.get("cancelar"):
                 progress.update({"status": "parado", "etapa": "Cancelado pelo usuario"})
@@ -226,6 +227,7 @@ def enviar_campanha(params: dict, progress: dict) -> None:
                     sender=template.remetente(camp, p["empresa"] or ""),
                     to_name=p["nome"] or "", anexos=anexos, inline=recursos, tag=tag)
                 dados.marcar_enviado(p["id"], "email", tag, mid)
+                ids_enviados.append(p["id"])
                 progress["enviados"] += 1
             except Exception as exc:  # noqa: BLE001
                 dados.marcar_erro(p["id"], "email", tag, str(exc))
@@ -237,7 +239,7 @@ def enviar_campanha(params: dict, progress: dict) -> None:
             time.sleep(settings.send_delay_seconds)
 
         progress.update({"status": "concluido", "etapa": "Envio concluido"})
-        _conferir_no_brevo(progress, tag)
+        _conferir_no_brevo(progress, tag, ids_enviados)
     except Exception as exc:  # noqa: BLE001
         progress.update({"status": "erro", "erro": f"{type(exc).__name__}: {exc}", "etapa": "Erro"})
     finally:
@@ -245,36 +247,44 @@ def enviar_campanha(params: dict, progress: dict) -> None:
             transporte.fechar()
 
 
-def _conferir_no_brevo(progress: dict, tag: str) -> None:
-    """Aceito pelo SMTP != entregue. Confere o que o Brevo fez com as mensagens.
+def _conferir_no_brevo(progress: dict, tag: str, ids: list[int]) -> None:
+    """Aceito pelo SMTP != entregue. Confere o que o Brevo fez com ESTAS mensagens.
 
     O relay aceita a mensagem e so depois o Brevo decide — se recusar (HTML invalido,
     remetente bloqueado, cota), nada e entregue e o envio teria terminado dizendo
     "concluido". Aqui puxamos os eventos e trazemos a verdade para a tela.
+
+    A conferencia olha so quem acabou de receber (`ids`): usar o total da campanha
+    misturaria disparos anteriores e produziria numeros sem sentido, como "recusou 153"
+    logo apos enviar 145.
     """
-    if not (progress.get("enviados") and mailer.configurado()):
+    if not (ids and mailer.configurado()):
         return
     progress["etapa"] = "Conferindo no Brevo..."
     try:
-        time.sleep(6)                       # o Brevo leva alguns segundos para processar
-        r = sincronizar_eventos()
+        time.sleep(8)                       # o Brevo leva alguns segundos para processar
+        sincronizar_eventos()
+        s = dados.situacao(ids, "email", tag)
     except Exception as exc:  # noqa: BLE001
         progress["conferencia"] = f"Nao consegui conferir no Brevo: {str(exc)[:150]}"
-        progress["etapa"] = "Envio concluido"
+        progress["etapa"] = "Envio concluido (sem conferir)"
         return
 
-    res = r.get("resumo", {})
-    falhas = (res.get("erros_brevo", 0) or 0) + (res.get("bounces", 0) or 0)
-    entregues = res.get("entregues", 0) or 0
-    if falhas:
+    progress["conferencia"] = s
+    enviadas = len(ids)
+    if s["erros"]:
         progress["status"] = "erro"
-        progress["etapa"] = "Enviado, mas o Brevo recusou"
+        progress["etapa"] = "Enviado, mas o Brevo recusou parte"
         progress["erro"] = (
-            f"O SMTP aceitou {progress['enviados']} mensagens, mas o Brevo recusou {falhas} "
-            f"e entregou {entregues}. Veja o motivo na tabela de destinatarios (coluna Obs.).")
+            f"Das {enviadas} mensagens aceitas pelo SMTP, o Brevo recusou {s['erros']} "
+            f"e entregou {s['entregues']}. O motivo de cada uma esta na tabela de "
+            "destinatarios, coluna Obs.")
+    elif s["entregues"]:
+        progress["etapa"] = f"Concluido — {s['entregues']} de {enviadas} ja entregues"
     else:
-        progress["etapa"] = f"Envio concluido — {entregues} entregues ate agora"
-    progress["conferencia"] = r
+        # normal: a confirmacao do Brevo pode demorar mais que os segundos que esperamos
+        progress["etapa"] = (f"Concluido — {enviadas} aceitas; o Brevo ainda nao confirmou "
+                             "a entrega. Use 'Sincronizar com o Brevo' em instantes.")
 
 
 # --------------------------------------------------------------------------- #
@@ -289,12 +299,14 @@ def agregar_eventos(eventos: list[dict]) -> dict[str, dict]:
         tipo = (ev.get("event") or "").strip().lower().replace(" ", "")
         a = agg.setdefault(email, {"delivered": 0, "opened": 0, "opened_count": 0,
                                    "clicked": 0, "clicked_count": 0, "bounced": 0,
-                                   "last_link": None, "last_event_at": None, "motivo": ""})
+                                   "last_link": None, "last_event_at": None, "motivo": "",
+                                   "entregue_em": "", "problema_em": ""})
         data = ev.get("date")
         if data and (a["last_event_at"] is None or data > a["last_event_at"]):
             a["last_event_at"] = data
         if tipo == "delivered":
             a["delivered"] = 1
+            a["entregue_em"] = max(a["entregue_em"], data or "")
         elif tipo in OPEN_EVENTS:
             a["opened"] = 1; a["opened_count"] += 1
         elif tipo in CLICK_EVENTS:
@@ -303,9 +315,19 @@ def agregar_eventos(eventos: list[dict]) -> dict[str, dict]:
                 a["last_link"] = ev["link"]
         elif tipo in PROBLEM_EVENTS:
             a["bounced"] = 1
-            # o `reason` do Brevo e a unica pista de por que a mensagem nao saiu
-            motivo = str(ev.get("reason") or "").strip()
-            a["motivo"] = f"{tipo}: {motivo}"[:280] if motivo else tipo
+            if (data or "") >= a["problema_em"]:
+                a["problema_em"] = data or ""
+                # o `reason` do Brevo e a unica pista de por que a mensagem nao saiu
+                motivo = str(ev.get("reason") or "").strip()
+                a["motivo"] = f"{tipo}: {motivo}"[:280] if motivo else tipo
+
+    # A consulta traz varios dias, entao a mesma pessoa pode ter o erro de um disparo
+    # antigo e a entrega do disparo novo. Sem olhar a ordem, o erro velho marcaria como
+    # falha quem acabou de receber. Vence o evento mais recente.
+    for a in agg.values():
+        if a["entregue_em"] and a["entregue_em"] > a["problema_em"]:
+            a["bounced"] = 0
+            a["motivo"] = ""
     return agg
 
 

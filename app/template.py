@@ -25,26 +25,41 @@ def _raw() -> str:
 # --------------------------------------------------------------------------- #
 # blocos
 # --------------------------------------------------------------------------- #
-def _bloco_empresa(url: str, empresa: str) -> str:
-    """Cabecalho com a marca da empresa do colaborador.
+def _faixa_marcas(url: str, empresa: str, srcs: dict) -> str:
+    """Faixa branca do topo: SHILD a esquerda, marca da empresa a direita.
 
-    Com logo: 'chip' branco (funciona com logo de qualquer cor sobre o azul) + nome abaixo.
-    Sem logo: so o nome, em corpo maior — evita repetir o nome duas vezes.
+    Branca de proposito — logo de empresa vem em qualquer cor e quase sempre e
+    desenhada para fundo claro; sobre o azul da SHILD metade delas sumiria. E fina:
+    a faixa identifica, quem comunica e o poster.
     """
+    direto = normalizar_imagem(url, largura=360)
     seguro = html.escape(empresa)
-    direto = normalizar_imagem(url, largura=400)
-    if not direto:
-        return ('<p style="margin:0;color:#ffffff;font-family:Arial,Helvetica,sans-serif;'
-                f'font-size:24px;font-weight:800;line-height:1.3;">{seguro}</p>')
+
+    src_shild = _src_shild(srcs)
+    if src_shild:
+        esquerda = (f'<img src="{src_shild}" width="104" alt="SHILD" '
+                    'style="display:block;margin:0 auto;border:0;outline:none;'
+                    'width:104px;max-width:104px;height:auto;">')
+    else:
+        esquerda = ('<span style="color:#002643;font-family:Arial,Helvetica,sans-serif;'
+                    'font-size:19px;font-weight:800;letter-spacing:4px;">SHILD</span>')
+
+    if direto:
+        direita = (f'<img src="{html.escape(direto, quote=True)}" width="124" '
+                   f'alt="{html.escape(empresa, quote=True)}" '
+                   'style="display:block;margin:0 auto;border:0;outline:none;'
+                   'width:124px;max-width:124px;height:auto;">')
+    else:
+        direita = ('<span style="color:#002643;font-family:Arial,Helvetica,sans-serif;'
+                   f'font-size:16px;font-weight:bold;line-height:1.3;">{seguro}</span>')
+
     return (
-        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" '
-        'style="margin:0 auto;background:#ffffff;border-radius:12px;">'
-        '<tr><td style="padding:14px 24px;text-align:center;">'
-        f'<img src="{html.escape(direto, quote=True)}" width="160" alt="{html.escape(empresa, quote=True)}" '
-        'style="display:block;border:0;outline:none;width:160px;max-width:160px;height:auto;">'
-        "</td></tr></table>"
-        '<p style="margin:16px 0 0;color:#ffffff;font-family:Arial,Helvetica,sans-serif;'
-        f'font-size:17px;font-weight:bold;line-height:1.3;">{seguro}</p>'
+        '<tr><td style="background:#ffffff;padding:16px 26px;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td width="49%" align="center" valign="middle" style="padding:0 12px;">{esquerda}</td>'
+        '<td width="1" style="background:#e4e8ed;font-size:0;line-height:0;">&nbsp;</td>'
+        f'<td width="49%" align="center" valign="middle" style="padding:0 12px;">{direita}</td>'
+        "</tr></table></td></tr>"
     )
 
 
@@ -62,18 +77,6 @@ def _logo_shild(srcs: dict, largura: int = 130, tam_texto: int = 24) -> str:
                 f'font-size:{tam_texto}px;font-weight:800;letter-spacing:5px;">SHILD</span>')
     return (f'<img src="{src}" width="{largura}" alt="SHILD" '
             f'style="display:inline-block;border:0;outline:none;max-width:{largura}px;height:auto;">')
-
-
-def _selo_shild(srcs: dict) -> str:
-    """Assinatura discreta da SHILD no topo, acima da marca da empresa.
-
-    Pequena de proposito: quem comunica e a empresa do funcionario — a SHILD aparece
-    como quem organiza, nao como remetente principal.
-    """
-    # sem opacity: Outlook ignora e o resultado ficaria diferente por cliente.
-    # A hierarquia vem do tamanho — 76px contra os 160px da logo da empresa.
-    marca = _logo_shild(srcs, largura=76, tam_texto=13)
-    return '<div style="margin:0 0 16px;line-height:1;">' + marca + "</div>"
 
 
 def _poster(camp: dict, srcs: dict) -> str:
@@ -228,13 +231,12 @@ def montar(camp: dict, empresa_bruta: str = "", nome: str = "", logo_url: str = 
         _raw()
         .replace("[[PREHEADER]]", html.escape(preheader))
         .replace("[[EYEBROW]]", html.escape(_aplicar(camp.get("eyebrow", "") or "Comunicado interno", v)))
-        .replace("[[BLOCO_EMPRESA]]", _bloco_empresa(logo_url, empresa))
         .replace("[[POSTER]]", _poster(camp, srcs))
         .replace("[[TITULO]]", html.escape(titulo))
         .replace("[[SAUDACAO]]", html.escape(saudacao))
         .replace("[[MENSAGEM]]", textfmt.para_html(mensagem))
         .replace("[[CTA]]", _cta(camp.get("cta_texto", ""), _aplicar(camp.get("cta_url", ""), v)))
-        .replace("[[SELO_SHILD]]", _selo_shild(srcs))
+        .replace("[[FAIXA_MARCAS]]", _faixa_marcas(logo_url, empresa, srcs))
         .replace("[[LOGO_SHILD]]", _logo_shild(srcs))
         .replace("[[LINKS]]", _links_rodape())
         .replace("[[UNSUB]]", _unsub_html())

@@ -48,15 +48,32 @@ def _bloco_empresa(url: str, empresa: str) -> str:
     )
 
 
-def _logo_shild(srcs: dict) -> str:
+def _src_shild(srcs: dict) -> str:
     src = srcs.get("shild")
     if src is None:
         src = html.escape(normalizar_imagem(settings.email_logo_url, largura=320), quote=True)
+    return src
+
+
+def _logo_shild(srcs: dict, largura: int = 130, tam_texto: int = 24) -> str:
+    src = _src_shild(srcs)
     if not src:
-        return ('<span style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:24px;'
-                'font-weight:800;letter-spacing:5px;">SHILD</span>')
-    return (f'<img src="{src}" width="130" alt="SHILD" '
-            'style="display:inline-block;border:0;outline:none;max-width:130px;height:auto;">')
+        return ('<span style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;'
+                f'font-size:{tam_texto}px;font-weight:800;letter-spacing:5px;">SHILD</span>')
+    return (f'<img src="{src}" width="{largura}" alt="SHILD" '
+            f'style="display:inline-block;border:0;outline:none;max-width:{largura}px;height:auto;">')
+
+
+def _selo_shild(srcs: dict) -> str:
+    """Assinatura discreta da SHILD no topo, acima da marca da empresa.
+
+    Pequena de proposito: quem comunica e a empresa do funcionario — a SHILD aparece
+    como quem organiza, nao como remetente principal.
+    """
+    # sem opacity: Outlook ignora e o resultado ficaria diferente por cliente.
+    # A hierarquia vem do tamanho — 76px contra os 160px da logo da empresa.
+    marca = _logo_shild(srcs, largura=76, tam_texto=13)
+    return '<div style="margin:0 0 16px;line-height:1;">' + marca + "</div>"
 
 
 def _poster(camp: dict, srcs: dict) -> str:
@@ -126,21 +143,28 @@ def _vars(camp: dict, empresa: str, nome: str) -> dict:
     }
 
 
-VAR_RE = re.compile(r"\{(\w+)\}")
+VAR_RE = re.compile(r"\{\s*(\w+)\s*\}")
+CHAVE_DUPLA = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 CAMPOS_COM_VARIAVEL = ("eyebrow", "assunto", "titulo", "saudacao", "mensagem", "preheader", "cta_url")
 
 
 def _aplicar(txt: str, v: dict) -> str:
     """Substitui {empresa}, {nome}, {primeiro_nome}, {virgula_nome}.
 
-    Tolerante de proposito: `{Empresa}` e `{EMPRESA}` funcionam igual a `{empresa}`,
-    e um nome de variavel que nao existe fica como esta em vez de quebrar o email.
+    Tolerante de proposito: `{Empresa}`, `{EMPRESA}`, `{ empresa }` e `{{empresa}}`
+    funcionam igual a `{empresa}`; nome de variavel inexistente fica como esta em vez
+    de quebrar o email.
+
+    A chave dupla importa por um motivo pratico: o relay SMTP do Brevo tem motor de
+    template proprio e REJEITA a mensagem inteira ao encontrar um `{{` que nao consiga
+    interpretar — sem entregar nada e sem acusar erro no momento do envio.
     """
     if not txt:
         return ""
+    txt = CHAVE_DUPLA.sub(r"{\1}", txt)           # {{empresa}} -> {empresa}
     # {virgula_nome} engole o espaco anterior: "Ola {virgula_nome}!" -> "Ola, Maria!"
     virgula = f", {v['primeiro_nome']}" if v.get("primeiro_nome") else ""
-    txt = re.sub(r"[ \t]*\{virgula_nome\}", virgula, txt, flags=re.IGNORECASE)
+    txt = re.sub(r"[ \t]*\{\s*virgula_nome\s*\}", virgula, txt, flags=re.IGNORECASE)
 
     def rep(m: re.Match) -> str:
         chave = m.group(1)
@@ -152,6 +176,21 @@ def _aplicar(txt: str, v: dict) -> str:
         return m.group(0)
 
     return VAR_RE.sub(rep, txt)
+
+
+def chaves_duplas(camp: dict) -> list[str]:
+    """Trechos com `{{` que o Brevo tentaria interpretar e por isso rejeitaria.
+
+    Sobra aqui so o que `_aplicar` nao normaliza — tipicamente `{{nome da empresa}}`,
+    com espacos no meio. Um unico caso desses derruba a campanha inteira, entao isso
+    bloqueia o disparo em vez de deixar o Brevo recusar 145 mensagens em silencio.
+    """
+    achados: list[str] = []
+    for campo in CAMPOS_COM_VARIAVEL:
+        limpo = CHAVE_DUPLA.sub("", camp.get(campo) or "")
+        for m in re.finditer(r"\{\{[^{}]{0,60}", limpo):
+            achados.append(f"{campo}: {m.group(0)[:50]}")
+    return achados
 
 
 def variaveis_desconhecidas(camp: dict) -> list[str]:
@@ -195,6 +234,7 @@ def montar(camp: dict, empresa_bruta: str = "", nome: str = "", logo_url: str = 
         .replace("[[SAUDACAO]]", html.escape(saudacao))
         .replace("[[MENSAGEM]]", textfmt.para_html(mensagem))
         .replace("[[CTA]]", _cta(camp.get("cta_texto", ""), _aplicar(camp.get("cta_url", ""), v)))
+        .replace("[[SELO_SHILD]]", _selo_shild(srcs))
         .replace("[[LOGO_SHILD]]", _logo_shild(srcs))
         .replace("[[LINKS]]", _links_rodape())
         .replace("[[UNSUB]]", _unsub_html())

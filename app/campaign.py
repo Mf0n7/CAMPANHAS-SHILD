@@ -162,6 +162,15 @@ def _validar(camp: dict) -> None:
         raise ValueError("Defina o titulo da campanha.")
     if not (camp.get("mensagem") or "").strip():
         raise ValueError("Escreva a mensagem da campanha.")
+    duplas = template.chaves_duplas(camp)
+    if duplas:
+        # O relay SMTP aceita a mensagem e o Brevo a recusa depois, sem entregar nada:
+        # o disparo "termina com sucesso" e ninguem recebe. Melhor barrar aqui.
+        raise ValueError(
+            "Ha chaves duplas no texto que o Brevo nao consegue interpretar — ele "
+            "recusaria TODAS as mensagens sem entregar nenhuma. Corrija para chave "
+            "simples ({empresa}, {nome}, {primeiro_nome}, {virgula_nome}):\n  - "
+            + "\n  - ".join(duplas))
 
 
 def enviar_campanha(params: dict, progress: dict) -> None:
@@ -228,11 +237,44 @@ def enviar_campanha(params: dict, progress: dict) -> None:
             time.sleep(settings.send_delay_seconds)
 
         progress.update({"status": "concluido", "etapa": "Envio concluido"})
+        _conferir_no_brevo(progress, tag)
     except Exception as exc:  # noqa: BLE001
         progress.update({"status": "erro", "erro": f"{type(exc).__name__}: {exc}", "etapa": "Erro"})
     finally:
         if transporte is not None:
             transporte.fechar()
+
+
+def _conferir_no_brevo(progress: dict, tag: str) -> None:
+    """Aceito pelo SMTP != entregue. Confere o que o Brevo fez com as mensagens.
+
+    O relay aceita a mensagem e so depois o Brevo decide — se recusar (HTML invalido,
+    remetente bloqueado, cota), nada e entregue e o envio teria terminado dizendo
+    "concluido". Aqui puxamos os eventos e trazemos a verdade para a tela.
+    """
+    if not (progress.get("enviados") and mailer.configurado()):
+        return
+    progress["etapa"] = "Conferindo no Brevo..."
+    try:
+        time.sleep(6)                       # o Brevo leva alguns segundos para processar
+        r = sincronizar_eventos()
+    except Exception as exc:  # noqa: BLE001
+        progress["conferencia"] = f"Nao consegui conferir no Brevo: {str(exc)[:150]}"
+        progress["etapa"] = "Envio concluido"
+        return
+
+    res = r.get("resumo", {})
+    falhas = (res.get("erros_brevo", 0) or 0) + (res.get("bounces", 0) or 0)
+    entregues = res.get("entregues", 0) or 0
+    if falhas:
+        progress["status"] = "erro"
+        progress["etapa"] = "Enviado, mas o Brevo recusou"
+        progress["erro"] = (
+            f"O SMTP aceitou {progress['enviados']} mensagens, mas o Brevo recusou {falhas} "
+            f"e entregou {entregues}. Veja o motivo na tabela de destinatarios (coluna Obs.).")
+    else:
+        progress["etapa"] = f"Envio concluido — {entregues} entregues ate agora"
+    progress["conferencia"] = r
 
 
 # --------------------------------------------------------------------------- #
@@ -247,7 +289,7 @@ def agregar_eventos(eventos: list[dict]) -> dict[str, dict]:
         tipo = (ev.get("event") or "").strip().lower().replace(" ", "")
         a = agg.setdefault(email, {"delivered": 0, "opened": 0, "opened_count": 0,
                                    "clicked": 0, "clicked_count": 0, "bounced": 0,
-                                   "last_link": None, "last_event_at": None})
+                                   "last_link": None, "last_event_at": None, "motivo": ""})
         data = ev.get("date")
         if data and (a["last_event_at"] is None or data > a["last_event_at"]):
             a["last_event_at"] = data
@@ -261,6 +303,9 @@ def agregar_eventos(eventos: list[dict]) -> dict[str, dict]:
                 a["last_link"] = ev["link"]
         elif tipo in PROBLEM_EVENTS:
             a["bounced"] = 1
+            # o `reason` do Brevo e a unica pista de por que a mensagem nao saiu
+            motivo = str(ev.get("reason") or "").strip()
+            a["motivo"] = f"{tipo}: {motivo}"[:280] if motivo else tipo
     return agg
 
 

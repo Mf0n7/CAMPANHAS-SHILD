@@ -48,6 +48,11 @@ def _avisos(camp: dict, plano: dict) -> list[str]:
         avisos.append("Variavel que nao existe e vai sair literal no email: "
                       + ", ".join("{" + v + "}" for v in desconhecidas)
                       + ". Validas: {empresa}, {nome}, {primeiro_nome}, {virgula_nome}.")
+    duplas = template.chaves_duplas(camp)
+    if duplas:
+        avisos.append("BLOQUEIA O DISPARO — chave dupla que o Brevo nao interpreta e por isso "
+                      "recusaria todas as mensagens: " + "; ".join(duplas)
+                      + ". Use chave simples: {empresa}, {nome}, {primeiro_nome}.")
     if dados.precisa_sincronizar():
         avisos.append("A base esta vazia. Importe a planilha de funcionarios no passo 3.")
     return avisos

@@ -100,6 +100,9 @@ def para_whatsapp(mensagem: str) -> str:
     return texto.strip()
 
 
+SO_TITULO = re.compile(r"^\*[^*\n]+\*$")
+
+
 def dividir_para_whatsapp(texto: str, limite: int) -> tuple[str, str]:
     """Separa em (legenda da imagem, mensagem seguinte). Corta em paragrafo inteiro."""
     if len(texto) <= limite:
@@ -111,4 +114,15 @@ def dividir_para_whatsapp(texto: str, limite: int) -> tuple[str, str]:
         corte = texto.rfind(" ", 0, limite)
     if corte <= 0:
         corte = limite
-    return texto[:corte].rstrip(), texto[corte:].lstrip()
+
+    # Nao terminar a legenda num titulo solto: "*Os seis temas*" como ultima linha
+    # deixaria o titulo orfao da lista dele, que foi para a mensagem seguinte.
+    primeira = texto[:corte].rstrip()
+    while "\n" in primeira:
+        ultima = primeira.rsplit("\n", 1)[-1].strip()
+        if not SO_TITULO.match(ultima):
+            break
+        corte = len(primeira) - len(ultima)
+        primeira = texto[:corte].rstrip()
+
+    return primeira, texto[corte:].lstrip()

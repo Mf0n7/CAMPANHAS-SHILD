@@ -232,6 +232,7 @@ def resumo(canal: str, tag: str) -> dict:
         conta_se(e.c.opened > 0).label("abertos"),
         conta_se(e.c.clicked > 0).label("clicados"),
         conta_se(e.c.bounced > 0).label("bounces"),
+        conta_se(and_(e.c.bounced > 0, e.c.delivered == 0)).label("erros_brevo"),
         conta_se(pessoas.c.tem_whatsapp == 1).label("com_whatsapp"),
         conta_se(pessoas.c.tem_whatsapp == 0).label("sem_whatsapp"),
         conta_se(pessoas.c.tem_whatsapp == -1).label("nao_verificados"),
@@ -323,12 +324,16 @@ def aplicar_eventos(agg: dict[str, dict], canal: str, tag: str) -> int:
                 func.lower(pessoas.c.email) == email.lower())).first()
             if not p:
                 continue
-            _upsert_envio(c, p[0], canal, tag, {
+            valores = {
                 "delivered": a["delivered"], "opened": a["opened"],
                 "opened_count": a["opened_count"], "clicked": a["clicked"],
                 "clicked_count": a["clicked_count"], "bounced": a["bounced"],
                 "last_link": a["last_link"] or "", "last_event_at": a["last_event_at"] or "",
-            })
+            }
+            if a.get("motivo"):     # o porque da recusa vai para a coluna Obs. da tabela
+                valores["status"] = "erro"
+                valores["erro"] = a["motivo"]
+            _upsert_envio(c, p[0], canal, tag, valores)
             atualizados += 1
     return atualizados
 
